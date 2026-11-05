@@ -1,6 +1,7 @@
 # dotlet
 
 Statistical tests for one question: **was this AI model trained on my material?**
+Works for **text** and **images**.
 
 No test can prove this by itself. What dotlet can do is measure whether a model
 treats **your text** differently from **comparable text it could not have seen**
@@ -11,9 +12,11 @@ copyright-audit studies work.
 ```
 pip install -e .            # core: pure Python, no dependencies
 pip install -e '.[mia]'     # + PyTorch/transformers for the open-model test
+pip install -e '.[images]'  # image tests (Pillow + numpy)
+pip install -e '.[image-clip]' / '.[image-mia]'   # + CLIP features / diffusion-model test
 ```
 
-## The three tests
+## Text: the three tests
 
 | Test | What you need | Works on | Detects |
 |---|---|---|---|
@@ -76,6 +79,74 @@ dotlet mia --materials my_book/ --controls new_writing/ --model EleutherAI/pythi
 This reports Min-K% Prob (primary), loss, and zlib-normalized loss. It only
 works where you can run the model and read its token probabilities.
 
+## Images: `dotlet image ...`
+
+These are the same three ideas and the same statistics. One image is one unit.
+
+| Test | What you need | Works on | Detects |
+|---|---|---|---|
+| `image overlap` | AI images you already have | any image generator | near-copies of your images among outputs |
+| `image probe` | an images API (or generate by hand) | any text-to-image model | the model recreates your image from its caption |
+| `image mia` *(experimental)* | model weights | Stable Diffusion-family models (`diffusers`) | lower denoising loss on your images |
+
+**Similarity features** (`--features`):
+
+- `hash` (default): a perceptual hash plus a difference hash, 128 bits in all.
+  It survives resizing, JPEG re-compression, brightness shifts and mirroring.
+  On our calibration set, edited copies score at least 0.94 and unrelated images
+  at most 0.74. Near-duplicate cut-off: 0.85.
+- `clip` or `clip:<hf-model-id>`: CLIP embeddings. Use this for copies that are
+  cropped, re-composed or re-styled. Be careful: CLIP also scores images that
+  merely share a subject as close. Near-duplicate cut-off: 0.95.
+
+### `image overlap`
+
+```
+dotlet image overlap --materials my_art/ --controls new_art/ --outputs ai_images/
+```
+
+Each of your images and each control is scored by its closest AI output
+(mirrored outputs included). You get the frequency test, a near-duplicate count
+compared against the closest any control came (the chance baseline), and a
+list of the closest pairs to inspect side by side. This is the approach
+Carlini et al. (2023) used to pull training images out of Stable Diffusion.
+
+### `image probe`
+
+```
+dotlet image probe make  --materials my_art/ --controls new_art/   # captions: sidecar img.txt, or --captions caps.csv
+dotlet image probe run   --model <images-model> --samples 4        # any OpenAI-compatible /images/generations API
+dotlet image probe score
+```
+
+The model gets only the caption. The score is how close its best sample comes to
+**your original**. Captions must be equally detailed for your images and for
+controls, or you end up testing the captions. Don't put titles or your name
+in one group only, unless that is exactly what you mean to test (for example
+"Untitled 3 by <you>"). Without an API, generate images yourself and list them
+as `{"id": "<image path>", "files": [...]}` lines.
+
+### `image mia` (experimental)
+
+```
+dotlet image mia --materials my_art/ --controls new_art/ --model <diffusers SD checkpoint> [--captions caps.csv]
+```
+
+This adds the same seeded noise at several timesteps and measures how well the
+model predicts it. Training images tend to get lower error. The error also
+depends heavily on image complexity, resolution and source. Controls must
+closely match your images (same medium, camera, style and size), and you need a
+GPU. This test has not been validated against a real model in this repo yet.
+
+### Reading image results
+
+If only some of your images leaked, the AUC is capped. For example, with 12 of
+30 leaked the best possible AUC is about 0.70. A modest AUC with a very small
+p-value can still be meaningful, so look at the near-duplicate list.
+Image-to-image modes, reference uploads ("make it like this") and generators
+with web retrieval all produce near-copies without any training. Rule these out
+before you treat a match as evidence.
+
 ## Choosing controls (the part that matters most)
 
 The test is only as good as the controls. They should be:
@@ -93,7 +164,7 @@ The test is only as good as the controls. They should be:
 
 Other confounders to rule out before drawing conclusions:
 
-- Your text was widely quoted or copied elsewhere online. Then the model may
+- Your text (or image) was widely quoted, reposted or copied elsewhere online. Then the model may
   have learned it from those copies.
 - The model has web search or retrieval. Then it is reading your text, not
   remembering it.

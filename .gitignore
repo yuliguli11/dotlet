@@ -5,3 +5,6 @@ build/
 dist/
 probes.jsonl
 responses.jsonl
+image_probes.jsonl
+image_responses.jsonl
+generated_images/

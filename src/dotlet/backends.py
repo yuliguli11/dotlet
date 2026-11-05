@@ -87,3 +87,29 @@ def get_backend(name: str, **kwargs) -> Backend:
     if name == "anthropic":
         return Anthropic(**kwargs)
     raise ValueError(f"unknown backend {name!r} (choose 'openai' or 'anthropic')")
+
+
+class OpenAIImages:
+    """OpenAI-compatible /images/generations endpoint. Returns raw image bytes."""
+
+    def __init__(self, model: str, base_url: str | None = None, api_key: str | None = None, size: str | None = "1024x1024"):
+        self.model = model
+        self.base = (base_url or os.environ.get("OPENAI_BASE_URL") or "https://api.openai.com/v1").rstrip("/")
+        self.key = api_key or os.environ.get("OPENAI_API_KEY", "")
+        self.size = size
+
+    def generate(self, prompt: str) -> bytes:
+        import base64
+
+        body = {"model": self.model, "prompt": prompt, "n": 1}
+        if self.size:
+            body["size"] = self.size
+        headers = {"authorization": f"Bearer {self.key}"} if self.key else {}
+        out = _post(self.base + "/images/generations", headers, body, timeout=300)
+        item = out["data"][0]
+        if item.get("b64_json"):
+            return base64.b64decode(item["b64_json"])
+        if item.get("url"):
+            with urllib.request.urlopen(item["url"], timeout=120) as resp:
+                return resp.read()
+        raise BackendError("image response had neither b64_json nor url")
