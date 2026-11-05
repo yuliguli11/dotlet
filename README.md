@@ -16,6 +16,20 @@ pip install -e '.[images]'  # image tests (Pillow + numpy)
 pip install -e '.[image-clip]' / '.[image-mia]'   # + CLIP features / diffusion-model test
 ```
 
+## Website
+
+`web/index.html` is a single-file web app with the text overlap, image overlap
+and completion-probe tests. **Everything runs in your browser and no file is
+uploaded**, which matters if you're checking unpublished work. Open the file
+directly, or host it anywhere static. For GitHub Pages: Settings > Pages >
+deploy from branch, folder `/web`.
+
+The statistics are ported from the Python package. On identical input the
+per-chunk scores, AUC and Mann-Whitney p-values match exactly. Permutation and
+bootstrap results differ slightly because they use a different random number
+generator. Tests that need model weights or automated API calls (`mia`,
+`image probe`, `image mia`, `probe run`) are only in the CLI.
+
 ## Text: the three tests
 
 | Test | What you need | Works on | Detects |

@@ -1,0 +1,882 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>dotlet</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a forensic workbench. Evidence goes in on the left (three exhibits), the verdict and its proof come out below. Highlighter yellow marks copied material. */
+:root {
+  --paper: #F1F4F7;
+  --surface: #FFFFFF;
+  --ink: #15202B;
+  --muted: #566573;
+  --line: #D3DBE3;
+  --accent: #1D5C8A;
+  --accent-ink: #FFFFFF;
+  --mark: #FFE45C;
+  --mark-ink: #15202B;
+  --yours: #1D5C8A;
+  --control: #8C99A6;
+  --hot: #B23F2A;
+  --warm: #9A6A0C;
+  --cool: #3F6B55;
+  --hot-bg: #F9E4DF;
+  --warm-bg: #F6EBD3;
+  --cool-bg: #E1EEE6;
+  --f-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --f-body: "Source Sans 3", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --r: 6px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0E141A; --surface: #16202A; --ink: #E5EBF0; --muted: #94A3B0; --line: #2A3845;
+    --accent: #72B5E8; --accent-ink: #0E141A; --mark: #E9CB2F; --mark-ink: #111111;
+    --yours: #72B5E8; --control: #6D7C89; --hot: #EE8B72; --warm: #E3B456; --cool: #8CC3A3;
+    --hot-bg: #3A211C; --warm-bg: #352A14; --cool-bg: #1B2E24; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0E141A; --surface: #16202A; --ink: #E5EBF0; --muted: #94A3B0; --line: #2A3845;
+  --accent: #72B5E8; --accent-ink: #0E141A; --mark: #E9CB2F; --mark-ink: #111111;
+  --yours: #72B5E8; --control: #6D7C89; --hot: #EE8B72; --warm: #E3B456; --cool: #8CC3A3;
+  --hot-bg: #3A211C; --warm-bg: #352A14; --cool-bg: #1B2E24; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body {
+  background: var(--paper); color: var(--ink);
+  font: 16px/1.55 var(--f-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 48px;
+}
+.wrap { max-width: 1120px; margin: 0 auto; }
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; margin: 0; line-height: 1.15; }
+code, .mono { font-family: var(--f-mono); font-size: 0.86em; }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+mark { background: var(--mark); color: var(--mark-ink); padding: 0 2px; border-radius: 2px; }
+
+/* header */
+header.top { padding-block: 32px 20px; display: grid; gap: 14px; }
+.brand { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+.brand h1 { font-size: clamp(2.2rem, 6vw, 3.4rem); font-weight: 800; letter-spacing: -0.03em; }
+.brand h1 span { background: linear-gradient(transparent 58%, var(--mark) 58%, var(--mark) 88%, transparent 88%); }
+.lede { font-size: 1.15rem; max-width: 62ch; margin: 0; color: var(--ink); }
+.private { display: inline-flex; gap: 8px; align-items: center; font-size: 0.9rem; color: var(--muted); }
+.private svg { flex: none; }
+
+/* tabs */
+nav.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); overflow-x: auto; margin-bottom: 24px; }
+nav.tabs a {
+  font: 600 0.95rem var(--f-body); color: var(--muted); text-decoration: none;
+  padding: 10px 14px; border-bottom: 3px solid transparent; white-space: nowrap;
+}
+nav.tabs a[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+nav.tabs a:hover { color: var(--ink); }
+
+section.view { display: grid; gap: 22px; }
+.intro { max-width: 70ch; margin: 0; color: var(--muted); }
+
+/* exhibits (inputs) */
+.exhibits { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.exhibits.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 820px) { .exhibits, .exhibits.two { grid-template-columns: minmax(0, 1fr); } }
+.exhibit {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r);
+  padding: 16px; display: grid; gap: 10px; align-content: start; min-width: 0;
+}
+.exhibit .tag { font: 600 0.72rem var(--f-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.exhibit h3 { font-size: 1.15rem; font-weight: 600; }
+.exhibit p { margin: 0; font-size: 0.92rem; color: var(--muted); }
+.exhibit.dragover { outline: 2px dashed var(--accent); outline-offset: -6px; }
+.filebtn { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.filebtn input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.filelist { font-size: 0.85rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 10px; max-height: 96px; overflow: auto; }
+.filelist .count { color: var(--ink); font-weight: 600; }
+textarea, input[type=number], select, input[type=text] {
+  font: 0.95rem var(--f-body); color: var(--ink); background: var(--paper);
+  border: 1px solid var(--line); border-radius: 4px; padding: 8px 10px; width: 100%;
+}
+textarea { min-height: 84px; resize: vertical; font-size: 0.9rem; }
+.thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 4px; max-height: 150px; overflow: auto; }
+.thumbs img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 3px; display: block; }
+
+/* controls */
+.controls { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: end; }
+.field { display: grid; gap: 4px; font-size: 0.85rem; color: var(--muted); }
+.field input, .field select { width: 9rem; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; margin-left: auto; }
+button, .btn {
+  font: 600 0.95rem var(--f-body); border-radius: 4px; padding: 9px 16px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+}
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+button.small { padding: 5px 10px; font-size: 0.85rem; }
+button:disabled { opacity: 0.55; cursor: progress; }
+button:hover:not(:disabled) { filter: brightness(1.06); }
+.example-flag {
+  font: 600 0.75rem var(--f-mono); text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--warm); background: var(--warm-bg); border-radius: 3px; padding: 3px 8px; justify-self: start;
+}
+
+/* results */
+.results { display: grid; gap: 18px; }
+.verdict {
+  border-radius: var(--r); padding: 18px 20px; display: grid; gap: 6px;
+  border-left: 6px solid var(--v-c); background: var(--v-bg);
+}
+.verdict[data-level="strong"] { --v-c: var(--hot); --v-bg: var(--hot-bg); }
+.verdict[data-level="some"] { --v-c: var(--warm); --v-bg: var(--warm-bg); }
+.verdict[data-level="none"] { --v-c: var(--cool); --v-bg: var(--cool-bg); }
+.verdict .lvl { font: 600 0.75rem var(--f-mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--v-c); }
+.verdict h2 { font-size: clamp(1.25rem, 3vw, 1.6rem); font-weight: 600; }
+.verdict p { margin: 0; max-width: 70ch; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 18px; display: grid; gap: 14px; min-width: 0; }
+.panel h3 { font-size: 1.05rem; font-weight: 600; }
+.panel .sub { margin: 0; color: var(--muted); font-size: 0.9rem; max-width: 70ch; }
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+@media (max-width: 700px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.stat { background: var(--surface); padding: 12px 14px; display: grid; gap: 2px; }
+.stat .k { font-size: 0.78rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.stat .v { font: 600 1.35rem var(--f-mono); font-variant-numeric: tabular-nums; }
+.stat .d { font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.charts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; }
+@media (max-width: 820px) { .charts { grid-template-columns: minmax(0, 1fr); } }
+.chart { overflow-x: auto; }
+.chart svg { display: block; width: 100%; height: auto; min-width: 300px; }
+.chart svg text { fill: var(--muted); font: 11px var(--f-mono); }
+.legend { display: flex; gap: 16px; font-size: 0.85rem; color: var(--muted); flex-wrap: wrap; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
+.notes { margin: 0; padding-left: 20px; color: var(--muted); font-size: 0.9rem; }
+.runs { display: grid; gap: 10px; }
+.run { border: 1px solid var(--line); border-radius: 4px; padding: 10px 12px; display: grid; gap: 6px; min-width: 0; }
+.run .meta { display: flex; gap: 10px; flex-wrap: wrap; font: 0.78rem var(--f-mono); color: var(--muted); }
+.run .meta b { color: var(--ink); }
+.run .txt { font-size: 0.95rem; overflow-wrap: anywhere; }
+.chip { font: 600 0.7rem var(--f-mono); text-transform: uppercase; letter-spacing: 0.06em; padding: 2px 7px; border-radius: 3px; }
+.chip.yours { background: var(--yours); color: var(--accent-ink); }
+.chip.control { background: var(--control); color: var(--surface); }
+.chip.flag { background: var(--hot); color: var(--surface); }
+.pairs { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+.pair { border: 1px solid var(--line); border-radius: 4px; padding: 10px; display: grid; gap: 8px; min-width: 0; }
+.pair .imgs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.pair .imgs figure { margin: 0; display: grid; gap: 3px; min-width: 0; }
+.pair .imgs img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 3px; }
+.pair figcaption { font: 0.7rem var(--f-mono); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pair .meta { display: flex; justify-content: space-between; align-items: center; gap: 6px; font: 0.8rem var(--f-mono); }
+.empty { border: 1px dashed var(--line); border-radius: var(--r); padding: 22px; color: var(--muted); text-align: center; }
+.status { font-size: 0.9rem; color: var(--muted); min-height: 1.4em; }
+.status.err { color: var(--hot); }
+
+/* probe */
+.probes { display: grid; gap: 10px; }
+.probe { background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 12px; display: grid; gap: 8px; min-width: 0; }
+.probe .head { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font: 0.78rem var(--f-mono); color: var(--muted); }
+.probe .head .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.probe .prefix { font-size: 0.9rem; color: var(--muted); overflow-wrap: anywhere; }
+.probe textarea { min-height: 60px; }
+details.box { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 12px 16px; }
+details.box summary { cursor: pointer; font-weight: 600; }
+details.box[open] summary { margin-bottom: 10px; }
+
+/* method */
+.method { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; }
+@media (max-width: 820px) { .method { grid-template-columns: minmax(0, 1fr); } }
+.method .panel p, .method .panel li { font-size: 0.95rem; }
+.method .panel p { margin: 0; }
+.method ul, .method ol { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
+pre.cmd { margin: 0; background: var(--paper); border: 1px solid var(--line); border-radius: 4px; padding: 10px 12px; overflow-x: auto; font: 0.82rem/1.5 var(--f-mono); }
+footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.85rem; }
+@media (prefers-reduced-motion: no-preference) { .results > * { animation: rise .35s ease both; } }
+@keyframes rise { from { transform: translateY(6px); } to { transform: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top">
+  <div class="brand"><h1><span>dotlet</span></h1></div>
+  <p class="lede">Check whether an AI model was trained on your writing or art. Compare how it treats your work with how it treats similar work it could never have seen, and see whether the difference is bigger than chance.</p>
+  <div class="private">
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+    Everything runs in your browser. Your files are never uploaded.
+  </div>
+</header>
+
+<nav class="tabs" role="tablist" aria-label="Tests">
+  <a href="#text" role="tab" data-view="text">Text overlap</a>
+  <a href="#images" role="tab" data-view="images">Image overlap</a>
+  <a href="#probe" role="tab" data-view="probe">Completion probe</a>
+  <a href="#method" role="tab" data-view="method">How it works</a>
+</nav>
+
+<!-- ============ TEXT ============ -->
+<section class="view" id="view-text" role="tabpanel">
+  <p class="intro">Add your writing, comparable control writing the AI can't have seen, and text the AI produced. dotlet checks whether rare 8-word sequences from your work turn up in the AI's output more often than sequences from the controls.</p>
+  <div class="exhibits" id="text-exhibits"></div>
+  <div class="controls">
+    <label class="field">Words per chunk<input type="number" id="t-chunk" value="200" min="20" step="10"></label>
+    <label class="field">Match length (words)<input type="number" id="t-n" value="8" min="4" max="20"></label>
+    <label class="field">Compare by
+      <select id="t-unit"><option value="chunk">chunk</option><option value="document">whole file</option></select>
+    </label>
+    <div class="actions">
+      <button id="t-example" type="button">Load example</button>
+      <button id="t-run" class="primary" type="button">Run test</button>
+    </div>
+  </div>
+  <div class="status" id="t-status" role="status"></div>
+  <div class="results" id="t-results"></div>
+</section>
+
+<!-- ============ IMAGES ============ -->
+<section class="view" id="view-images" role="tabpanel" hidden>
+  <p class="intro">Add your images, comparable control images the AI can't have seen, and images the AI generated. dotlet fingerprints every image (a perceptual hash that survives resizing, compression, brightness changes and mirroring) and checks whether AI images come closer to yours than to the controls.</p>
+  <div class="exhibits" id="image-exhibits"></div>
+  <div class="controls">
+    <label class="field">Near-copy cut-off<input type="number" id="i-thr" value="0.85" min="0.5" max="1" step="0.01"></label>
+    <div class="actions">
+      <button id="i-example" type="button">Load example</button>
+      <button id="i-run" class="primary" type="button">Run test</button>
+    </div>
+  </div>
+  <div class="status" id="i-status" role="status"></div>
+  <div class="results" id="i-results"></div>
+</section>
+
+<!-- ============ PROBE ============ -->
+<section class="view" id="view-probe" role="tabpanel" hidden>
+  <p class="intro">Show a chatbot the first half of a passage and ask it to continue. A model that memorized your text tends to reproduce the real ending; for control text it can only guess. This uses the <b>Your work</b> and <b>Controls</b> files from the Text overlap tab.</p>
+  <div class="controls">
+    <label class="field">Words per passage<input type="number" id="p-chunk" value="120" min="30" step="10"></label>
+    <label class="field">Passages per group<input type="number" id="p-max" value="20" min="5" max="200"></label>
+    <label class="field">Similarity measure
+      <select id="p-metric"><option value="ngram">shared 4-word phrases</option><option value="lcs">longest common sequence</option><option value="prefix">exact opening words</option></select>
+    </label>
+    <div class="actions">
+      <button id="p-example" type="button">Load example</button>
+      <button id="p-make" type="button">Make prompts</button>
+      <button id="p-run" class="primary" type="button">Score replies</button>
+    </div>
+  </div>
+  <div class="status" id="p-status" role="status"></div>
+  <div class="results" id="p-results"></div>
+  <details class="box" id="p-bulk">
+    <summary>Use the command-line tool or an API instead</summary>
+    <div style="display:grid;gap:10px">
+      <p class="intro">Copy the prompts as JSONL, run <code>dotlet probe run</code> (or your own script), then paste the replies file back here. Lines look like <code>{"id": "...", "response": "..."}</code>.</p>
+      <div class="filebtn"><button type="button" class="small" id="p-copy-all">Copy prompts as JSONL</button></div>
+      <textarea id="p-import" placeholder='Paste responses.jsonl here'></textarea>
+      <div class="filebtn"><button type="button" class="small" id="p-import-btn">Import replies</button></div>
+    </div>
+  </details>
+  <div class="probes" id="p-list"></div>
+</section>
+
+<!-- ============ METHOD ============ -->
+<section class="view" id="view-method" role="tabpanel" hidden>
+  <div class="method">
+    <div class="panel">
+      <h3>What the test actually shows</h3>
+      <p>No test can prove a model was trained on your work. dotlet measures whether a model treats <b>your work</b> differently from <b>control work</b> it could not have seen. It then asks how likely a difference that big would be by chance.</p>
+      <ul>
+        <li><b>AUC</b>: how often one of your pieces scores higher than a control piece. 0.5 means no difference, 1.0 means complete separation.</li>
+        <li><b>p-value</b>: how often a difference this large would happen if the model treated both groups the same. The verdict uses the larger of a permutation test and a Mann-Whitney test.</li>
+        <li><b>Long verbatim matches</b> are reported separately. A single 60-word copy can be strong evidence even when it's too rare to move the overall statistics.</li>
+      </ul>
+    </div>
+    <div class="panel">
+      <h3>Choosing controls matters most</h3>
+      <ol>
+        <li><b>Unseen by the model.</b> Writing or art you made after the model's training cutoff, or never published. Your own newer work is usually the best control.</li>
+        <li><b>Matched.</b> Same genre, style, medium, length and era. Otherwise you are measuring style, not training.</li>
+        <li><b>Enough of it.</b> Aim for 30 or more pieces on each side.</li>
+      </ol>
+      <p>Before calling a match evidence, rule out the obvious: your text was in the prompt, it's widely quoted or reposted online, or the AI searched the web or was given a reference image.</p>
+    </div>
+    <div class="panel">
+      <h3>More tests in the command-line tool</h3>
+      <p>Some tests need model weights or an automated API run, so they live in the Python tool:</p>
+      <ul>
+        <li><code>dotlet probe run</code>: send completion probes to any OpenAI-compatible or Anthropic API.</li>
+        <li><code>dotlet mia</code>: membership inference on open text models (Min-K% Prob, loss, zlib).</li>
+        <li><code>dotlet image probe</code>: ask an image model to recreate your images from their captions.</li>
+        <li><code>dotlet image mia</code>: denoising-loss test on Stable Diffusion-family models.</li>
+      </ul>
+      <pre class="cmd">pip install -e '.[images]'
+dotlet --help</pre>
+    </div>
+    <div class="panel">
+      <h3>Reading a result</h3>
+      <ul>
+        <li><b>Strong evidence</b>: the model consistently favors your work over matched controls. That's consistent with training exposure, but it doesn't show how the work got there.</li>
+        <li><b>No significant evidence</b> isn't proof of absence. The model may have seen your work too few times to memorize it, or the sample may be small.</li>
+        <li>If only some of your work leaked, the AUC stays modest even when the p-value is tiny. Look at the matches themselves.</li>
+        <li>This is a research tool, not legal advice.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<footer>dotlet runs locally. Nothing you add here leaves this page.</footer>
+</div>
+
+<script>
+"use strict";
+/* ===================================================================== stats
+   Ported from dotlet/stats.py. Higher score = more "memorized"-looking. */
+function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function ranks(v) {
+  const idx = v.map((_, i) => i).sort((a, b) => v[a] - v[b]);
+  const r = new Array(v.length);
+  let i = 0;
+  while (i < idx.length) {
+    let j = i;
+    while (j + 1 < idx.length && v[idx[j + 1]] === v[idx[i]]) j++;
+    const avg = (i + j) / 2 + 1;
+    for (let k = i; k <= j; k++) r[idx[k]] = avg;
+    i = j + 1;
+  }
+  return r;
+}
+function auc(pos, neg) {
+  const n = pos.length, m = neg.length;
+  if (!n || !m) return NaN;
+  const r = ranks(pos.concat(neg));
+  let s = 0; for (let i = 0; i < n; i++) s += r[i];
+  return (s - n * (n + 1) / 2) / (n * m);
+}
+function erfc(x) { // Numerical Recipes erfcc, |rel err| < 1.2e-7
+  const z = Math.abs(x), t = 1 / (1 + 0.5 * z);
+  const r = t * Math.exp(-z * z - 1.26551223 + t * (1.00002368 + t * (0.37409196 + t * (0.09678418 + t * (-0.18628806 + t * (0.27886807 + t * (-1.13520398 + t * (1.48851587 + t * (-0.82215223 + t * 0.17087277)))))))));
+  return x >= 0 ? r : 2 - r;
+}
+function mannWhitneyGreater(pos, neg) {
+  const n = pos.length, m = neg.length;
+  if (!n || !m) return NaN;
+  const comb = pos.concat(neg), r = ranks(comb);
+  let s = 0; for (let i = 0; i < n; i++) s += r[i];
+  const u = s - n * (n + 1) / 2, N = n + m;
+  const counts = new Map(); for (const v of comb) counts.set(v, (counts.get(v) || 0) + 1);
+  let tie = 0; for (const t of counts.values()) tie += t ** 3 - t;
+  const v = N > 1 ? n * m / 12 * ((N + 1) - tie / (N * (N - 1))) : 0;
+  if (v <= 0) return 1;
+  const z = (u - n * m / 2 - 0.5) / Math.sqrt(v);
+  return 0.5 * erfc(z / Math.SQRT2);
+}
+function permutationTest(pos, neg, B = 10000, seed = 0) {
+  const n = pos.length, m = neg.length;
+  if (!n || !m) return NaN;
+  const rng = mulberry32(seed + 1), pooled = Float64Array.from(pos.concat(neg));
+  const total = pooled.reduce((a, b) => a + b, 0);
+  const obs = pos.reduce((a, b) => a + b, 0) / n - neg.reduce((a, b) => a + b, 0) / m;
+  let hits = 0;
+  for (let b = 0; b < B; b++) {
+    // partial Fisher-Yates: only the first n slots matter
+    let s = 0;
+    for (let i = 0; i < n; i++) {
+      const j = i + Math.floor(rng() * (pooled.length - i));
+      const t = pooled[i]; pooled[i] = pooled[j]; pooled[j] = t; s += pooled[i];
+    }
+    if (s / n - (total - s) / m >= obs - 1e-12) hits++;
+  }
+  return (hits + 1) / (B + 1);
+}
+function bootstrapAucCI(pos, neg, B = 2000, alpha = 0.05, seed = 0) {
+  if (!pos.length || !neg.length) return [NaN, NaN];
+  const rng = mulberry32(seed + 7), vals = [];
+  for (let b = 0; b < B; b++) {
+    const p = pos.map(() => pos[Math.floor(rng() * pos.length)]);
+    const q = neg.map(() => neg[Math.floor(rng() * neg.length)]);
+    vals.push(auc(p, q));
+  }
+  vals.sort((a, b) => a - b);
+  return [vals[Math.floor(alpha / 2 * (B - 1))], vals[Math.ceil((1 - alpha / 2) * (B - 1))]];
+}
+function aggregateByGroup(ids, scores) {
+  const g = new Map();
+  ids.forEach((id, i) => { const k = id.slice(0, id.lastIndexOf("#")); if (!g.has(k)) g.set(k, []); g.get(k).push(scores[i]); });
+  return [...g.keys()].sort().map(k => g.get(k).reduce((a, b) => a + b, 0) / g.get(k).length);
+}
+function compare(pos, neg, metric, { alpha = 0.05, B = 10000, Bboot = 2000, seed = 0 } = {}) {
+  const notes = [];
+  if (pos.length < 10 || neg.length < 10)
+    notes.push(`Small sample (${pos.length} of yours vs ${neg.length} controls). Add more material and controls for a reliable test.`);
+  const a = auc(pos, neg), ci = bootstrapAucCI(pos, neg, Bboot, alpha, seed);
+  const pPerm = permutationTest(pos, neg, B, seed), pMw = mannWhitneyGreater(pos, neg);
+  const p = Math.max(pPerm, pMw);
+  const level = (p < alpha / 5 && ci[0] > 0.5) ? "strong" : (p < alpha ? "some" : "none");
+  const mean = x => x.length ? x.reduce((s, v) => s + v, 0) / x.length : NaN;
+  return { metric, nPos: pos.length, nNeg: neg.length, meanPos: mean(pos), meanNeg: mean(neg), auc: a, ci, pPerm, pMw, alpha, level, notes, pos, neg };
+}
+
+/* ====================================================================== text */
+const WORD_RE = /[\p{L}\p{N}]+(?:'[\p{L}\p{N}]+)*/gu;
+function words(s) { return (s.normalize("NFKC").replace(/[‘’]/g, "'").toLowerCase().match(WORD_RE)) || []; }
+function ngramSet(w, n) { const s = new Set(); for (let i = 0; i + n <= w.length; i++) s.add(w.slice(i, i + n).join(" ")); return s; }
+function chunkDocs(docs, size, maxPerDoc) {
+  const out = [];
+  for (const d of docs) {
+    const toks = d.text.split(/\s+/).filter(Boolean);
+    let pieces = [];
+    for (let s = 0; s < toks.length; s += size) { const p = toks.slice(s, s + size); if (p.length >= Math.max(1, Math.floor(size / 2))) pieces.push(p); }
+    if (maxPerDoc && pieces.length > maxPerDoc) { const step = pieces.length / maxPerDoc; pieces = Array.from({ length: maxPerDoc }, (_, i) => pieces[Math.floor(i * step)]); }
+    pieces.forEach((p, i) => out.push({ id: `${d.name}#${i}`, source: d.name, index: i, text: p.join(" ") }));
+  }
+  return out;
+}
+function scoreChunk(w, outIdx, n) {
+  const pos = []; let total = 0;
+  for (let i = 0; i + n <= w.length; i++) { total++; if (outIdx.has(w.slice(i, i + n).join(" "))) pos.push(i); }
+  const spans = [];
+  for (const i of pos) { if (spans.length && i <= spans[spans.length - 1][1] - n + 1) spans[spans.length - 1][1] = i + n; else spans.push([i, i + n]); }
+  return { score: total ? pos.length / total : 0, spans };
+}
+function analyzeText(matDocs, ctrlDocs, outDocs, { chunk = 200, n = 8, unit = "chunk", ...cmp } = {}) {
+  const mats = chunkDocs(matDocs, chunk), ctrls = chunkDocs(ctrlDocs, chunk);
+  if (!mats.length || !ctrls.length) throw new Error(`Your work and the controls each need at least ${Math.ceil(chunk / 2)} words (half a chunk). Lower "Words per chunk" or add more text.`);
+  const outIdx = new Set(); for (const d of outDocs) for (const g of ngramSet(words(d.text), n)) outIdx.add(g);
+  const run = (chunks, group) => {
+    const ids = [], scores = [], spans = [];
+    for (const c of chunks) {
+      const w = words(c.text), r = scoreChunk(w, outIdx, n);
+      ids.push(c.id); scores.push(r.score);
+      for (const [a, b] of r.spans) spans.push({ id: c.id, source: c.source, group, len: b - a, text: w.slice(a, b).join(" ") });
+    }
+    return { ids, scores, spans };
+  };
+  const C = run(mats, "yours"), K = run(ctrls, "control");
+  const pos = unit === "document" ? aggregateByGroup(C.ids, C.scores) : C.scores;
+  const neg = unit === "document" ? aggregateByGroup(K.ids, K.scores) : K.scores;
+  const res = compare(pos, neg, `share of ${n}-word sequences found in AI output`, cmp);
+  const spans = C.spans.concat(K.spans).sort((a, b) => b.len - a.len);
+  res.spans = spans;
+  res.longestYours = Math.max(0, ...C.spans.map(s => s.len));
+  res.longestControl = Math.max(0, ...K.spans.map(s => s.len));
+  res.n = n;
+  return res;
+}
+
+/* ===================================================================== probe */
+function lcsLen(a, b) {
+  if (!a.length || !b.length) return 0;
+  let prev = new Array(b.length + 1).fill(0);
+  for (const x of a) { const cur = new Array(b.length + 1).fill(0); for (let j = 1; j <= b.length; j++) cur[j] = x === b[j - 1] ? prev[j - 1] + 1 : Math.max(prev[j], cur[j - 1]); prev = cur; }
+  return prev[b.length];
+}
+function scoreContinuation(gen, ref, metric = "ngram", n = 4) {
+  const r = words(ref), g = words(gen).slice(0, r.length);
+  if (!r.length) return 0;
+  if (metric === "ngram") { const rg = ngramSet(r, n), gg = ngramSet(g, n); let k = 0; for (const x of rg) if (gg.has(x)) k++; return rg.size ? k / rg.size : 0; }
+  if (metric === "lcs") return lcsLen(g, r) / r.length;
+  let k = 0; while (k < g.length && g[k] === r[k]) k++; return k / r.length;
+}
+const PROMPT = "Continue the following passage exactly as it appears in its original source. Output only the continuation, with no commentary.\n\n";
+function makeProbes(matDocs, ctrlDocs, size, maxPer) {
+  const pick = (docs, group) => {
+    let ch = chunkDocs(docs, size);
+    if (ch.length > maxPer) { const step = ch.length / maxPer; ch = Array.from({ length: maxPer }, (_, i) => ch[Math.floor(i * step)]); }
+    return ch.map(c => { const t = c.text.split(" "), k = Math.max(1, Math.floor(t.length / 2)), prefix = t.slice(0, k).join(" ");
+      return { id: c.id, group, prefix, reference: t.slice(k).join(" "), prompt: PROMPT + prefix }; });
+  };
+  return pick(matDocs, "candidate").concat(pick(ctrlDocs, "control"));
+}
+
+/* ==================================================================== images */
+const DCT = (() => { const N = 32, m = []; for (let k = 0; k < N; k++) { m.push([]); for (let i = 0; i < N; i++) m[k].push(Math.cos(Math.PI * (2 * i + 1) * k / (2 * N)) * Math.sqrt(2 / N) * (k === 0 ? Math.SQRT1_2 : 1)); } return m; })();
+function grayAt(src, w, h, mirror) {
+  let cur = src, cw = src.width, ch = src.height;
+  while (cw / 2 >= w * 2 && ch / 2 >= h * 2) { // step down to avoid aliasing
+    const c = document.createElement("canvas"); c.width = Math.floor(cw / 2); c.height = Math.floor(ch / 2);
+    const x = c.getContext("2d"); x.imageSmoothingQuality = "high"; x.fillStyle = "#fff"; x.fillRect(0, 0, c.width, c.height); x.drawImage(cur, 0, 0, c.width, c.height);
+    cur = c; cw = c.width; ch = c.height;
+  }
+  const c = document.createElement("canvas"); c.width = w; c.height = h;
+  const x = c.getContext("2d", { willReadFrequently: true }); x.imageSmoothingQuality = "high";
+  x.fillStyle = "#fff"; x.fillRect(0, 0, w, h);
+  if (mirror) { x.translate(w, 0); x.scale(-1, 1); }
+  x.drawImage(cur, 0, 0, w, h);
+  const d = x.getImageData(0, 0, w, h).data, g = new Float64Array(w * h);
+  for (let i = 0; i < w * h; i++) g[i] = (d[4 * i] * 299 + d[4 * i + 1] * 587 + d[4 * i + 2] * 114) / 1000;
+  return g;
+}
+function imageHash(src, mirror = false) {
+  const a = grayAt(src, 32, 32, mirror), tmp = [];
+  for (let u = 0; u < 8; u++) { tmp.push(new Float64Array(32)); for (let j = 0; j < 32; j++) { let s = 0; for (let i = 0; i < 32; i++) s += DCT[u][i] * a[i * 32 + j]; tmp[u][j] = s; } }
+  const low = [];
+  for (let u = 0; u < 8; u++) for (let v = 0; v < 8; v++) { let s = 0; for (let j = 0; j < 32; j++) s += tmp[u][j] * DCT[v][j]; low.push(s); }
+  const sorted = low.slice(1).sort((p, q) => p - q), med = sorted[31];
+  const bits = new Uint8Array(128);
+  low.forEach((v, i) => bits[i] = v > med ? 1 : 0);
+  const b = grayAt(src, 9, 8, mirror);
+  for (let r = 0, k = 64; r < 8; r++) for (let c = 0; c < 8; c++, k++) bits[k] = b[r * 9 + c + 1] > b[r * 9 + c] ? 1 : 0;
+  return bits;
+}
+function hashSim(a, b) { let d = 0; for (let i = 0; i < 128; i++) d += a[i] !== b[i]; return 1 - d / 128; }
+function analyzeImages(mats, ctrls, outs, { threshold = 0.85, ...cmp } = {}) {
+  if (!mats.length || !ctrls.length) throw new Error("Add at least one image to Your work and to Controls.");
+  if (!outs.length) throw new Error("Add at least one AI-generated image.");
+  const O = []; for (const o of outs) { O.push({ o, h: imageHash(o.src) }); O.push({ o, h: imageHash(o.src, true) }); }
+  const run = (items, group) => items.map(it => {
+    const h = imageHash(it.src); let best = -1, bo = null;
+    for (const x of O) { const s = hashSim(h, x.h); if (s > best) { best = s; bo = x.o; } }
+    return { item: it, group, out: bo, sim: best };
+  });
+  const C = run(mats, "yours"), K = run(ctrls, "control");
+  const res = compare(C.map(m => m.sim), K.map(m => m.sim), "closest fingerprint match to any AI image", cmp);
+  res.matches = C.concat(K).sort((a, b) => b.sim - a.sim);
+  res.threshold = threshold;
+  res.nearDups = C.filter(m => m.sim >= threshold);
+  res.maxControl = Math.max(0, ...K.map(m => m.sim));
+  return res;
+}
+
+/* ===================================================================== UI */
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmtP = p => p < 0.0001 ? "< 0.0001" : p.toPrecision(2);
+const base = s => String(s).split(/[\\/]/).pop();
+const state = { text: { mine: [], ctrl: [], out: [] }, img: { mine: [], ctrl: [], out: [] }, probes: [], example: { text: false, img: false, probe: false } };
+const TEXT_EXT = /\.(txt|md|markdown|rst|html?|tex|csv|json)$/i;
+
+const EXHIBITS = [
+  { key: "mine", tag: "Exhibit A", title: "Your work", hint: "Your writing or art: what you suspect was used for training." },
+  { key: "ctrl", tag: "Exhibit B", title: "Controls", hint: "Similar work the AI can't have seen, such as pieces you made after its training cutoff." },
+  { key: "out", tag: "Exhibit C", title: "AI output", hint: "What the AI produced. Don't include outputs where your work was in the prompt." },
+];
+function buildExhibits(kind) {
+  const host = $(kind === "text" ? "#text-exhibits" : "#image-exhibits");
+  host.innerHTML = EXHIBITS.map(e => `
+    <div class="exhibit" data-kind="${kind}" data-key="${e.key}">
+      <span class="tag">${e.tag}</span><h3>${e.title}</h3><p>${e.hint}</p>
+      <div class="filebtn">
+        <label class="btn small" for="${kind}-${e.key}-file" style="padding:5px 10px;font-size:.85rem">Add ${kind === "text" ? "files" : "images"}</label>
+        <input type="file" id="${kind}-${e.key}-file" multiple accept="${kind === "text" ? ".txt,.md,.markdown,.rst,.html,.htm,.tex,.csv,.json,text/plain" : "image/*"}">
+        <button type="button" class="small" data-clear>Clear</button>
+      </div>
+      ${kind === "text" ? `<textarea id="${kind}-${e.key}-paste" placeholder="Or paste text here (counts as one file)"></textarea>` : ""}
+      <div class="${kind === "text" ? "filelist" : "thumbs"}" data-list></div>
+    </div>`).join("");
+  host.querySelectorAll(".exhibit").forEach(box => {
+    const key = box.dataset.key, input = box.querySelector("input[type=file]");
+    const add = files => addFiles(kind, key, [...files]);
+    input.addEventListener("change", () => { add(input.files); input.value = ""; });
+    box.querySelector("[data-clear]").addEventListener("click", () => { state[kind === "text" ? "text" : "img"][key] = []; const ta = box.querySelector("textarea"); if (ta) ta.value = ""; renderList(kind, key); });
+    box.addEventListener("dragover", e => { e.preventDefault(); box.classList.add("dragover"); });
+    box.addEventListener("dragleave", () => box.classList.remove("dragover"));
+    box.addEventListener("drop", e => { e.preventDefault(); box.classList.remove("dragover"); add(e.dataTransfer.files); });
+  });
+}
+async function addFiles(kind, key, files) {
+  if (kind === "text") {
+    for (const f of files) {
+      if (!TEXT_EXT.test(f.name)) { status("t", `Skipped ${f.name}: only plain-text files (.txt, .md, .html and similar) can be read here.`, true); continue; }
+      let t = await f.text(); if (/\.html?$/i.test(f.name)) t = t.replace(/<[^>]+>/g, " ");
+      if (t.trim()) state.text[key].push({ name: f.name, text: t });
+    }
+  } else {
+    for (const f of files) {
+      if (!f.type.startsWith("image/")) continue;
+      try { const src = await createImageBitmap(f); state.img[key].push({ name: f.name, src, url: URL.createObjectURL(f) }); }
+      catch { status("i", `Couldn't read ${f.name} as an image.`, true); }
+    }
+  }
+  state.example[kind === "text" ? "text" : "img"] = false;
+  renderList(kind, key);
+}
+function renderList(kind, key) {
+  const box = document.querySelector(`.exhibit[data-kind="${kind}"][data-key="${key}"]`), list = box.querySelector("[data-list]");
+  if (kind === "text") {
+    const items = state.text[key], words_ = items.reduce((s, d) => s + d.text.split(/\s+/).filter(Boolean).length, 0);
+    list.innerHTML = items.length ? `<span class="count">${items.length} file${items.length > 1 ? "s" : ""}, ${words_.toLocaleString()} words</span>` + items.slice(0, 12).map(d => `<span>${esc(base(d.name))}</span>`).join("") + (items.length > 12 ? `<span>+${items.length - 12} more</span>` : "") : "";
+  } else {
+    const items = state.img[key];
+    list.innerHTML = items.slice(0, 60).map(d => `<img src="${d.url}" alt="${esc(d.name)}" title="${esc(d.name)}">`).join("");
+  }
+}
+function status(p, msg, err = false) { const el = $(`#${p}-status`); el.textContent = msg; el.classList.toggle("err", err); }
+function textDocs(key) {
+  const docs = state.text[key].slice(), ta = $(`#text-${key}-paste`);
+  if (ta && ta.value.trim()) docs.push({ name: `pasted-${key}`, text: ta.value });
+  return docs;
+}
+
+/* -------- charts */
+function aucChart(r) {
+  const W = 460, H = 74, L = 18, R = 18, x = v => L + v * (W - L - R);
+  const ticks = [0, 0.25, 0.5, 0.75, 1];
+  const [lo, hi] = r.ci;
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="AUC ${r.auc.toFixed(2)}, 95% interval ${lo.toFixed(2)} to ${hi.toFixed(2)}">
+    <line x1="${x(0)}" x2="${x(1)}" y1="34" y2="34" stroke="var(--line)" stroke-width="2"/>
+    ${ticks.map(t => `<line x1="${x(t)}" x2="${x(t)}" y1="29" y2="39" stroke="var(--line)"/><text x="${x(t)}" y="58" text-anchor="middle">${t}</text>`).join("")}
+    <line x1="${x(0.5)}" x2="${x(0.5)}" y1="14" y2="44" stroke="var(--muted)" stroke-dasharray="3 3"/>
+    <text x="${x(0.5)}" y="10" text-anchor="middle">no difference</text>
+    <rect x="${x(lo)}" y="29" width="${Math.max(2, x(hi) - x(lo))}" height="10" rx="2" fill="var(--yours)" opacity="0.3"/>
+    <circle cx="${x(r.auc)}" cy="34" r="7" fill="var(--yours)" stroke="var(--surface)" stroke-width="2"/>
+  </svg>`;
+}
+function stripChart(r, label) {
+  const W = 460, H = 118, L = 72, R = 16;
+  const all = r.pos.concat(r.neg), max = Math.max(...all, 1e-9), min = Math.min(0, ...all);
+  const x = v => L + (v - min) / (max - min || 1) * (W - L - R);
+  const rng = mulberry32(3);
+  const dots = (vals, y, col) => vals.map(v => `<circle cx="${x(v).toFixed(1)}" cy="${(y + (rng() - 0.5) * 18).toFixed(1)}" r="3.6" fill="${col}" fill-opacity="0.7"/>`).join("");
+  const ticks = [min, (min + max) / 2, max];
+  const fmt = v => Math.abs(max - min) >= 2 ? v.toFixed(1) : v.toFixed(2);
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Scores of your pieces and control pieces">
+    <text x="0" y="34">yours</text><text x="0" y="74">controls</text>
+    ${dots(r.pos, 30, "var(--yours)")}${dots(r.neg, 70, "var(--control)")}
+    <line x1="${L}" x2="${W - R}" y1="94" y2="94" stroke="var(--line)"/>
+    ${ticks.map(t => `<line x1="${x(t)}" x2="${x(t)}" y1="91" y2="97" stroke="var(--line)"/><text x="${x(t)}" y="112" text-anchor="middle">${fmt(t)}</text>`).join("")}
+  </svg>`;
+}
+const VERDICTS = {
+  strong: ["Strong evidence", "Your work is treated very differently from the controls, well beyond chance. That's consistent with the model having trained on it."],
+  some: ["Some evidence", "Your work scores higher than the controls more often than chance would explain, but the signal is modest. Add more material and controls to firm it up."],
+  none: ["No significant evidence", "At this sample size the model doesn't treat your work differently from the controls. That isn't proof it never saw your work."],
+};
+function resultBlock(r, unitLabel, extraTitle, copies = 0) {
+  let [h, p] = VERDICTS[r.level], level = r.level;
+  if (copies && r.level === "none") {
+    level = "some"; h = `${copies} copied ${copies > 1 ? "pieces" : "piece"} found, but no consistent pattern`;
+    p = "Some individual matches go far beyond anything the controls produced, so look at them below. Across all your work, though, the model doesn't favor it more than chance would explain.";
+  } else if (copies) p += ` It also reproduced ${copies} ${copies > 1 ? "pieces" : "piece"} far beyond the control baseline (see below).`;
+  return `
+  <div class="verdict" data-level="${level}"><span class="lvl">${extraTitle}</span><h2>${h}</h2><p>${p}</p></div>
+  <div class="panel">
+    <h3>The numbers</h3>
+    <div class="stats">
+      <div class="stat"><span class="k">AUC</span><span class="v">${r.auc.toFixed(3)}</span><span class="d">95% CI ${r.ci[0].toFixed(2)} to ${r.ci[1].toFixed(2)}</span></div>
+      <div class="stat"><span class="k">p, permutation</span><span class="v">${fmtP(r.pPerm)}</span><span class="d">10,000 shuffles</span></div>
+      <div class="stat"><span class="k">p, Mann-Whitney</span><span class="v">${fmtP(r.pMw)}</span><span class="d">one-sided</span></div>
+      <div class="stat"><span class="k">Compared</span><span class="v">${r.nPos} / ${r.nNeg}</span><span class="d">${unitLabel}: yours / controls</span></div>
+    </div>
+    <div class="charts">
+      <div class="chart"><p class="sub">AUC with its 95% interval. Right of the dashed line means your work scores higher.</p>${aucChart(r)}</div>
+      <div class="chart"><p class="sub">Each dot is one ${unitLabel.replace(/s$/, "")}: ${esc(r.metric)}.</p>${stripChart(r)}
+        <div class="legend"><span><i style="background:var(--yours)"></i>yours, mean ${r.meanPos.toFixed(3)}</span><span><i style="background:var(--control)"></i>controls, mean ${r.meanNeg.toFixed(3)}</span></div></div>
+    </div>
+    ${r.notes.length ? `<ul class="notes">${r.notes.map(n => `<li>${esc(n)}</li>`).join("")}</ul>` : ""}
+  </div>`;
+}
+function exampleFlag(on) { return on ? `<span class="example-flag">Example data, not yours</span>` : ""; }
+const later = f => new Promise(res => setTimeout(() => res(f()), 30));
+
+/* -------- text tab */
+async function runText() {
+  const btn = $("#t-run"); btn.disabled = true; status("t", "Running...");
+  try {
+    if (!textDocs("out").length) throw new Error("Add some AI output to check (Exhibit C).");
+    const r = await later(() => analyzeText(textDocs("mine"), textDocs("ctrl"), textDocs("out"), { chunk: +$("#t-chunk").value, n: +$("#t-n").value, unit: $("#t-unit").value }));
+    const unit = $("#t-unit").value === "document" ? "files" : "chunks";
+    const longYours = r.spans.filter(s => s.group === "yours" && s.len >= 20);
+    const flagged = longYours.length && r.longestYours > 2 * Math.max(r.longestControl, r.n);
+    $("#t-results").innerHTML = exampleFlag(state.example.text) + resultBlock(r, unit, "Text overlap", flagged ? longYours.length : 0) + `
+      <div class="panel">
+        <h3>Verbatim matches</h3>
+        <p class="sub">A single long match can be strong evidence on its own, because chance almost never produces one. The controls show how long a match gets by accident.</p>
+        <div class="stats">
+          <div class="stat"><span class="k">Longest from yours</span><span class="v">${r.longestYours}</span><span class="d">words in a row</span></div>
+          <div class="stat"><span class="k">Longest from controls</span><span class="v">${r.longestControl}</span><span class="d">chance baseline</span></div>
+          <div class="stat"><span class="k">Runs of 20+ words</span><span class="v">${longYours.length}</span><span class="d">from your work</span></div>
+          <div class="stat"><span class="k">Status</span><span class="v">${flagged ? "Flagged" : "Clear"}</span><span class="d">${flagged ? "far above baseline" : "nothing unusual"}</span></div>
+        </div>
+        ${flagged ? `<p class="sub"><span class="chip flag">Flag</span> Matches this long are rarely coincidence. Before you rely on them, check that the passage wasn't in the prompt, isn't widely quoted, and that the AI wasn't searching the web.</p>` : ""}
+        <div class="runs">${r.spans.slice(0, 8).map(s => `
+          <div class="run"><div class="meta"><span class="chip ${s.group}">${s.group === "yours" ? "yours" : "control"}</span><b>${s.len} words</b><span>${esc(base(s.source))}, part ${+s.id.split("#").pop() + 1}</span></div>
+          <div class="txt"><mark>${esc(s.text)}</mark></div></div>`).join("") || `<div class="empty">No ${r.n}-word sequence from either group appears in the AI output.</div>`}</div>
+      </div>`;
+    status("t", "");
+  } catch (e) { status("t", e.message, true); }
+  btn.disabled = false;
+}
+
+/* -------- image tab */
+async function runImages() {
+  const btn = $("#i-run"); btn.disabled = true; status("i", "Fingerprinting images...");
+  try {
+    const r = await later(() => analyzeImages(state.img.mine, state.img.ctrl, state.img.out, { threshold: +$("#i-thr").value }));
+    const flagged = r.nearDups.length && Math.min(...r.nearDups.map(m => m.sim)) > r.maxControl;
+    $("#i-results").innerHTML = exampleFlag(state.example.img) + resultBlock(r, "images", "Image overlap", flagged ? r.nearDups.length : 0) + `
+      <div class="panel">
+        <h3>Near-copies</h3>
+        <p class="sub">Similarity is the share of 128 fingerprint bits that agree. Unrelated images land near 0.5; resized or recompressed copies land above 0.9.</p>
+        <div class="stats">
+          <div class="stat"><span class="k">Your images copied</span><span class="v">${r.nearDups.length}</span><span class="d">at or above ${r.threshold.toFixed(2)}</span></div>
+          <div class="stat"><span class="k">Closest control</span><span class="v">${r.maxControl.toFixed(3)}</span><span class="d">chance baseline</span></div>
+          <div class="stat"><span class="k">AI images checked</span><span class="v">${state.img.out.length}</span><span class="d">plus mirrored</span></div>
+          <div class="stat"><span class="k">Status</span><span class="v">${flagged ? "Flagged" : "Clear"}</span><span class="d">${flagged ? "beyond every control" : "nothing unusual"}</span></div>
+        </div>
+        ${flagged ? `<p class="sub"><span class="chip flag">Flag</span> These copies are closer than any control came. Rule out image-to-image tools, uploaded reference images and web search before you rely on them.</p>` : ""}
+        <h3>Closest pairs</h3>
+        <div class="pairs">${r.matches.slice(0, 12).map(m => `
+          <div class="pair"><div class="imgs">
+            <figure><img src="${m.item.url}" alt=""><figcaption>${esc(base(m.item.name))}</figcaption></figure>
+            <figure><img src="${m.out.url}" alt=""><figcaption>AI: ${esc(base(m.out.name))}</figcaption></figure></div>
+            <div class="meta"><span class="chip ${m.group}">${m.group}</span>${m.group === "yours" && m.sim >= r.threshold ? `<span class="chip flag">near-copy</span>` : ""}<b>${m.sim.toFixed(3)}</b></div>
+          </div>`).join("")}</div>
+      </div>`;
+    status("i", "");
+  } catch (e) { status("i", e.message, true); }
+  btn.disabled = false;
+}
+
+/* -------- probe tab */
+function renderProbes() {
+  $("#p-list").innerHTML = state.probes.map((p, i) => `
+    <div class="probe" data-i="${i}">
+      <div class="head"><span class="chip ${p.group === "candidate" ? "yours" : "control"}">${p.group === "candidate" ? "yours" : "control"}</span><span class="grow">${esc(base(p.id))}</span><button type="button" class="small" data-copy="${i}">Copy prompt</button></div>
+      <div class="prefix">…${esc(p.prefix.split(" ").slice(-24).join(" "))}</div>
+      <textarea id="p-resp-${i}" aria-label="Chatbot reply for passage ${i + 1}" placeholder="Paste the chatbot's reply here">${esc(p.response || "")}</textarea>
+    </div>`).join("");
+}
+async function copyText(t, btn) {
+  try { await navigator.clipboard.writeText(t); const o = btn.textContent; btn.textContent = "Copied"; setTimeout(() => btn.textContent = o, 1200); }
+  catch { const ta = document.createElement("textarea"); ta.value = t; ta.style.cssText = "width:100%;min-height:120px"; btn.after(ta); ta.select(); btn.textContent = "Select and copy below"; }
+}
+function makePrompts() {
+  const mats = textDocs("mine"), ctrls = textDocs("ctrl");
+  if (!mats.length || !ctrls.length) { status("p", "Add Your work and Controls on the Text overlap tab first.", true); return; }
+  state.probes = makeProbes(mats, ctrls, +$("#p-chunk").value, +$("#p-max").value);
+  renderProbes(); $("#p-results").innerHTML = "";
+  status("p", `${state.probes.length} prompts ready. Paste each into a fresh chat with the model you're testing, then paste its reply back.`);
+}
+function collectReplies() { state.probes.forEach((p, i) => { const t = $(`#p-resp-${i}`); if (t) p.response = t.value; }); }
+async function scoreProbes() {
+  collectReplies();
+  const metric = $("#p-metric").value, done = state.probes.filter(p => (p.response || "").trim());
+  if (!done.length) { status("p", "No replies yet. Paste at least a few chatbot replies first.", true); return; }
+  const btn = $("#p-run"); btn.disabled = true;
+  const rows = done.map(p => ({ ...p, score: scoreContinuation(p.response, p.reference, metric) }));
+  try {
+    const r = await later(() => compare(rows.filter(x => x.group === "candidate").map(x => x.score), rows.filter(x => x.group === "control").map(x => x.score), `similarity to the real continuation (${$("#p-metric").selectedOptions[0].text})`));
+    if (done.length < state.probes.length) r.notes.push(`${state.probes.length - done.length} passage(s) have no reply yet and were left out.`);
+    const best = rows.filter(x => x.group === "candidate").sort((a, b) => b.score - a.score).slice(0, 4);
+    $("#p-results").innerHTML = exampleFlag(state.example.probe) + resultBlock(r, "passages", "Completion probe") + `
+      <div class="panel"><h3>Your passages it continued most faithfully</h3><div class="runs">${best.map(x => `
+        <div class="run"><div class="meta"><b>${x.score.toFixed(2)}</b><span>${esc(base(x.id))}</span></div>
+        <div class="txt"><span class="mono">Real:</span> ${esc(x.reference.split(" ").slice(0, 40).join(" "))}…</div>
+        <div class="txt"><span class="mono">Model:</span> ${esc(words(x.response).slice(0, 40).join(" "))}…</div></div>`).join("")}</div></div>`;
+    status("p", "");
+  } catch (e) { status("p", e.message, true); }
+  btn.disabled = false;
+}
+
+/* -------- examples (synthetic, clearly labeled) */
+const LEX = {
+  adj: "quiet amber hollow distant brittle crooked salt-white restless narrow tender ruined patient copper silver frozen sunken gentle bitter tangled wide pale crimson silent ancient humming weathered lonely gilded heavy hidden".split(" "),
+  noun: "harbor lantern orchard window ferry kettle river staircase letter garden bridge mirror lighthouse attic meadow bell orchestra carriage valley tower compass blanket market island chapel engine forest station curtain anchor".split(" "),
+  verb: "remembered carried folded followed watched gathered crossed opened buried painted measured traded mended guarded counted lifted borrowed wrapped circled warmed".split(" "),
+  prep: "beneath beyond across behind toward inside against along".split(" "),
+  name: "Mara Ilse Tomas Oren Petra Juno Felix Agnes Nico Wren Lio Saskia".split(" "),
+  time: "at dusk before the frost every winter by morning after the storm on the last day of summer".split(" "),
+};
+function prose(rng, nWords) {
+  const pick = a => a[Math.floor(rng() * a.length)], out = [];
+  const T = [
+    () => `${pick(LEX.name)} ${pick(LEX.verb)} the ${pick(LEX.adj)} ${pick(LEX.noun)} ${pick(LEX.prep)} the ${pick(LEX.adj)} ${pick(LEX.noun)}.`,
+    () => `The ${pick(LEX.noun)} was ${pick(LEX.adj)} and ${pick(LEX.adj)}, and ${pick(LEX.name)} ${pick(LEX.verb)} it ${pick(LEX.prep)} the ${pick(LEX.noun)}.`,
+    () => `Nobody ${pick(LEX.verb)} the ${pick(LEX.noun)} ${pick(LEX.prep)} the ${pick(LEX.adj)} ${pick(LEX.noun)}, not even ${pick(LEX.name)}.`,
+    () => `In the ${pick(LEX.adj)} ${pick(LEX.noun)} we ${pick(LEX.verb)} a ${pick(LEX.adj)} ${pick(LEX.noun)} and a ${pick(LEX.noun)}.`,
+  ];
+  while (out.join(" ").split(" ").length < nWords) out.push(pick(T)());
+  return out.join(" ");
+}
+function loadTextExample() {
+  const rng = mulberry32(42);
+  state.text.mine = Array.from({ length: 8 }, (_, i) => ({ name: `story-${String(i + 1).padStart(2, "0")}.txt`, text: prose(rng, 420) }));
+  state.text.ctrl = Array.from({ length: 8 }, (_, i) => ({ name: `new-story-${String(i + 1).padStart(2, "0")}.txt`, text: prose(rng, 420) }));
+  const outs = [];
+  for (let k = 0; k < 10; k++) {
+    let t = prose(rng, 160);
+    if (k < 7) { const src = state.text.mine[k].text.split(" "), s = Math.floor(rng() * 200), len = [62, 34, 26, 18, 14, 40, 22][k]; t += " " + src.slice(s, s + len).join(" ") + " " + prose(rng, 60); }
+    outs.push({ name: `ai-answer-${k + 1}.txt`, text: t });
+  }
+  state.text.out = outs;
+  ["mine", "ctrl", "out"].forEach(k => { $(`#text-${k}-paste`).value = ""; renderList("text", k); });
+  $("#t-chunk").value = 70; state.example.text = true;
+}
+async function synthImage(seed, size = 160) {
+  const rng = mulberry32(seed), c = document.createElement("canvas"); c.width = c.height = size;
+  const x = c.getContext("2d"), col = () => `hsl(${Math.floor(rng() * 360)} ${40 + Math.floor(rng() * 50)}% ${25 + Math.floor(rng() * 55)}%)`;
+  const g = x.createLinearGradient(0, 0, size * rng(), size); g.addColorStop(0, col()); g.addColorStop(1, col()); x.fillStyle = g; x.fillRect(0, 0, size, size);
+  for (let i = 0; i < 7; i++) {
+    x.fillStyle = col(); x.beginPath();
+    const cx = rng() * size, cy = rng() * size, r = 10 + rng() * size * 0.35;
+    if (rng() < 0.5) x.arc(cx, cy, r, 0, Math.PI * 2); else x.rect(cx - r / 2, cy - r / 2, r * (0.6 + rng()), r * (0.6 + rng()));
+    x.fill();
+  }
+  return c;
+}
+async function canvasItem(c, name, { jpeg = false, mirror = false, scale = 1, bright = 1 } = {}) {
+  let src = c;
+  if (jpeg || mirror || scale !== 1 || bright !== 1) {
+    const d = document.createElement("canvas"); d.width = Math.round(c.width * scale); d.height = Math.round(c.height * scale);
+    const x = d.getContext("2d"); x.filter = `brightness(${bright})`; if (mirror) { x.translate(d.width, 0); x.scale(-1, 1); }
+    x.drawImage(c, 0, 0, d.width, d.height); src = d;
+  }
+  const url = src.toDataURL(jpeg ? "image/jpeg" : "image/png", 0.55);
+  const img = new Image(); img.src = url; await img.decode();
+  return { name, src: await createImageBitmap(img), url };
+}
+async function loadImageExample() {
+  status("i", "Generating example images...");
+  const mine = [], ctrl = [], out = [];
+  for (let i = 0; i < 20; i++) mine.push(await canvasItem(await synthImage(100 + i), `artwork-${String(i + 1).padStart(2, "0")}.png`));
+  for (let i = 0; i < 20; i++) ctrl.push(await canvasItem(await synthImage(500 + i), `new-work-${String(i + 1).padStart(2, "0")}.png`));
+  for (let i = 0; i < 7; i++) out.push(await canvasItem(await synthImage(100 + i * 2), `generated-${i + 1}.jpg`, { jpeg: true, mirror: i % 3 === 0, scale: 1.4, bright: 1.08 }));
+  for (let i = 0; i < 17; i++) out.push(await canvasItem(await synthImage(900 + i), `generated-${i + 8}.png`));
+  Object.assign(state.img, { mine, ctrl, out });
+  ["mine", "ctrl", "out"].forEach(k => renderList("image", k));
+  state.example.img = true; status("i", "");
+}
+function loadProbeExample() {
+  if (!state.text.mine.length) loadTextExample();
+  $("#p-chunk").value = 60; makePrompts();
+  const rng = mulberry32(9);
+  state.probes.forEach(p => {
+    if (p.group === "candidate" && rng() < 0.6) { const r = p.reference.split(" "); p.response = r.slice(0, Math.floor(r.length * (0.3 + rng() * 0.6))).join(" ") + " " + prose(rng, 12); }
+    else p.response = prose(rng, p.reference.split(" ").length);
+  });
+  renderProbes(); state.example.probe = true;
+  status("p", "Example replies filled in: a model that recalls part of most of your passages.");
+}
+
+/* -------- routing + wiring */
+const VIEWS = ["text", "images", "probe", "method"];
+function route() {
+  const v = VIEWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "text";
+  VIEWS.forEach(n => { $(`#view-${n}`).hidden = n !== v; });
+  document.querySelectorAll("nav.tabs a").forEach(a => a.setAttribute("aria-selected", a.dataset.view === v ? "true" : "false"));
+}
+window.addEventListener("hashchange", route);
+buildExhibits("text"); buildExhibits("image");
+$("#t-run").addEventListener("click", runText);
+$("#t-example").addEventListener("click", () => { loadTextExample(); runText(); });
+$("#i-run").addEventListener("click", runImages);
+$("#i-example").addEventListener("click", async () => { await loadImageExample(); runImages(); });
+$("#p-make").addEventListener("click", () => { state.example.probe = false; makePrompts(); });
+$("#p-run").addEventListener("click", scoreProbes);
+$("#p-example").addEventListener("click", () => { loadProbeExample(); scoreProbes(); });
+$("#p-list").addEventListener("click", e => { const b = e.target.closest("[data-copy]"); if (b) copyText(state.probes[+b.dataset.copy].prompt, b); });
+$("#p-copy-all").addEventListener("click", e => { if (!state.probes.length) makePrompts(); copyText(state.probes.map(p => JSON.stringify({ id: p.id, group: p.group, prefix: p.prefix, reference: p.reference, prompt: p.prompt })).join("\n"), e.target); });
+$("#p-import-btn").addEventListener("click", () => {
+  collectReplies(); let n = 0;
+  const byId = new Map(state.probes.map(p => [p.id, p]));
+  for (const line of $("#p-import").value.split("\n")) { if (!line.trim()) continue; try { const r = JSON.parse(line), p = byId.get(r.id); if (p && r.response != null) { p.response = r.response; n++; } } catch { } }
+  renderProbes(); status("p", n ? `Imported ${n} replies.` : "No lines matched these prompts. Make the prompts with the same settings and files first.", !n);
+});
+route();
+// Open in a working state: the text example, clearly labeled.
+loadTextExample(); runText();
+window.dotlet = { analyzeText, analyzeImages, scoreContinuation, compare, auc, mannWhitneyGreater, imageHash, hashSim };
+</script>
+</body>
+</html>
