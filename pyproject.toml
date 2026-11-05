@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dotlet"
+version = "0.1.0"
+description = "Statistical tests for whether an AI model was trained on your material"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = []
+
+[project.optional-dependencies]
+mia = ["torch", "transformers"]
+dev = ["pytest"]
+
+[project.scripts]
+dotlet = "dotlet.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
