@@ -136,6 +136,7 @@ button:hover:not(:disabled) { filter: brightness(1.06); }
 .verdict[data-level="strong"] { --v-c: var(--hot); --v-bg: var(--hot-bg); }
 .verdict[data-level="some"] { --v-c: var(--warm); --v-bg: var(--warm-bg); }
 .verdict[data-level="none"] { --v-c: var(--cool); --v-bg: var(--cool-bg); }
+.verdict[data-level="error"] { --v-c: var(--hot); --v-bg: var(--hot-bg); }
 .verdict .lvl { font: 600 0.75rem var(--f-mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--v-c); }
 .verdict h2 { font-size: clamp(1.25rem, 3vw, 1.6rem); font-weight: 600; }
 .verdict p { margin: 0; max-width: 70ch; }
@@ -579,6 +580,8 @@ function buildExhibits(kind) {
     box.addEventListener("dragover", e => { e.preventDefault(); box.classList.add("dragover"); });
     box.addEventListener("dragleave", () => box.classList.remove("dragover"));
     box.addEventListener("drop", e => { e.preventDefault(); box.classList.remove("dragover"); add(e.dataTransfer.files); });
+    const ta = box.querySelector("textarea");
+    if (ta) ta.addEventListener("input", () => { if (ta.value.trim()) dropExample("text"); });
     if (kind === "image") box.addEventListener("paste", e => {
       const files = [...(e.clipboardData?.files || [])];
       if (files.length) { e.preventDefault(); add(files); }
@@ -641,7 +644,30 @@ async function readTextFile(f) {
   const t = await f.text();
   return /\.html?$/i.test(f.name) ? t.replace(/<[^>]+>/g, " ") : t;
 }
+const BOX_NAMES = { mine: "Your work (Exhibit A)", ctrl: "Controls (Exhibit B)", out: "AI output (Exhibit C)" };
+function dropExample(kind) {
+  const st = kind === "text" ? state.text : state.img;
+  if (!Object.values(st).some(a => a.some(d => d.example))) return;
+  for (const k of ["mine", "ctrl", "out"]) { st[k] = st[k].filter(d => !d.example); renderList(kind, k); }
+  if (kind === "text") {
+    state.example.text = false; $("#t-chunk").value = 200;
+    if (state.example.probe) { state.probes = []; state.example.probe = false; renderProbes(); $("#p-results").innerHTML = ""; $("#p-chunk").value = 120; status("p", ""); }
+  } else state.example.img = false;
+  $(kind === "text" ? "#t-results" : "#i-results").innerHTML =
+    `<div class="empty">The example data has been removed, so only your own files are used. Fill all three boxes, then press Run test.</div>`;
+}
+function showError(prefix, msg) {
+  status(prefix, "");
+  const el = $(`#${prefix}-results`);
+  el.innerHTML = `<div class="verdict" data-level="error"><span class="lvl">Couldn't run the test</span><h2>${esc(msg)}</h2></div>`;
+  el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+function missingBoxes(get) {
+  const miss = ["mine", "ctrl", "out"].filter(k => !get(k).length).map(k => BOX_NAMES[k]);
+  if (miss.length) throw new Error(`Nothing in ${miss.join(miss.length > 2 ? ", " : " or ").replace(/, (?=[^,]*$)/, ", or ")} yet. Add files${get === textDocs ? " or paste text" : ""} there first.`);
+}
 async function addFiles(kind, key, files) {
+  if (files.length) dropExample(kind);
   const box = document.querySelector(`.exhibit[data-kind="${kind}"][data-key="${key}"]`), msg = box.querySelector("[data-msg]");
   const problems = []; let added = 0;
   msg.className = "msg ok"; msg.textContent = `Reading ${files.length} file${files.length === 1 ? "" : "s"}...`;
@@ -670,7 +696,7 @@ function renderList(kind, key) {
   const box = document.querySelector(`.exhibit[data-kind="${kind}"][data-key="${key}"]`), list = box.querySelector("[data-list]");
   if (kind === "text") {
     const items = state.text[key], words_ = items.reduce((s, d) => s + d.text.split(/\s+/).filter(Boolean).length, 0);
-    list.innerHTML = items.length ? `<span class="count">${items.length} file${items.length > 1 ? "s" : ""}, ${words_.toLocaleString()} words</span>` + items.slice(0, 12).map(d => `<span>${esc(base(d.name))}</span>`).join("") + (items.length > 12 ? `<span>+${items.length - 12} more</span>` : "") : "";
+    list.innerHTML = items.length ? (items.some(d => d.example) ? `<span class="example-flag">Example</span>` : "") + `<span class="count">${items.length} file${items.length > 1 ? "s" : ""}, ${words_.toLocaleString()} words</span>` + items.slice(0, 12).map(d => `<span>${esc(base(d.name))}</span>`).join("") + (items.length > 12 ? `<span>+${items.length - 12} more</span>` : "") : "";
   } else {
     const items = state.img[key];
     list.innerHTML = items.slice(0, 60).map(d => `<img src="${d.url}" alt="${esc(d.name)}" title="${esc(d.name)}">`).join("");
@@ -746,9 +772,9 @@ const later = f => new Promise(res => setTimeout(() => res(f()), 30));
 
 /* -------- text tab */
 async function runText() {
-  const btn = $("#t-run"); btn.disabled = true; status("t", "Running...");
+  const btn = $("#t-run"); btn.disabled = true; $("#t-results").innerHTML = ""; status("t", "Running...");
   try {
-    if (!textDocs("out").length) throw new Error("Add some AI output to check (Exhibit C).");
+    missingBoxes(textDocs);
     const r = await later(() => analyzeText(textDocs("mine"), textDocs("ctrl"), textDocs("out"), { chunk: +$("#t-chunk").value, n: +$("#t-n").value, unit: $("#t-unit").value }));
     const unit = $("#t-unit").value === "document" ? "files" : "chunks";
     const longYours = r.spans.filter(s => s.group === "yours" && s.len >= 20);
@@ -768,15 +794,16 @@ async function runText() {
           <div class="run"><div class="meta"><span class="chip ${s.group}">${s.group === "yours" ? "yours" : "control"}</span><b>${s.len} words</b><span>${esc(base(s.source))}, part ${+s.id.split("#").pop() + 1}</span></div>
           <div class="txt"><mark>${esc(s.text)}</mark></div></div>`).join("") || `<div class="empty">No ${r.n}-word sequence from either group appears in the AI output.</div>`}</div>
       </div>`;
-    status("t", "");
-  } catch (e) { status("t", e.message, true); }
+    status("t", ""); if (!state.example.text) $("#t-results").scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (e) { showError("t", e.message); }
   btn.disabled = false;
 }
 
 /* -------- image tab */
 async function runImages() {
-  const btn = $("#i-run"); btn.disabled = true; status("i", "Fingerprinting images...");
+  const btn = $("#i-run"); btn.disabled = true; $("#i-results").innerHTML = ""; status("i", "Fingerprinting images...");
   try {
+    missingBoxes(k => state.img[k]);
     const r = await later(() => analyzeImages(state.img.mine, state.img.ctrl, state.img.out, { threshold: +$("#i-thr").value }));
     const flagged = r.nearDups.length && Math.min(...r.nearDups.map(m => m.sim)) > r.maxControl;
     $("#i-results").innerHTML = exampleFlag(state.example.img) + resultBlock(r, "images", "Image overlap", flagged ? r.nearDups.length : 0) + `
@@ -798,8 +825,8 @@ async function runImages() {
             <div class="meta"><span class="chip ${m.group}">${m.group}</span>${m.group === "yours" && m.sim >= r.threshold ? `<span class="chip flag">near-copy</span>` : ""}<b>${m.sim.toFixed(3)}</b></div>
           </div>`).join("")}</div>
       </div>`;
-    status("i", "");
-  } catch (e) { status("i", e.message, true); }
+    status("i", ""); if (!state.example.img) $("#i-results").scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (e) { showError("i", e.message); }
   btn.disabled = false;
 }
 
@@ -818,7 +845,7 @@ async function copyText(t, btn) {
 }
 function makePrompts() {
   const mats = textDocs("mine"), ctrls = textDocs("ctrl");
-  if (!mats.length || !ctrls.length) { status("p", "Add Your work and Controls on the Text overlap tab first.", true); return; }
+  if (!mats.length || !ctrls.length) { showError("p", "Add your work and controls on the Text overlap tab first. This tab uses the same files."); return; }
   state.probes = makeProbes(mats, ctrls, +$("#p-chunk").value, +$("#p-max").value);
   renderProbes(); $("#p-results").innerHTML = "";
   status("p", `${state.probes.length} prompts ready. Paste each into a fresh chat with the model you're testing, then paste its reply back.`);
@@ -827,8 +854,9 @@ function collectReplies() { state.probes.forEach((p, i) => { const t = $(`#p-res
 async function scoreProbes() {
   collectReplies();
   const metric = $("#p-metric").value, done = state.probes.filter(p => (p.response || "").trim());
-  if (!done.length) { status("p", "No replies yet. Paste at least a few chatbot replies first.", true); return; }
-  const btn = $("#p-run"); btn.disabled = true;
+  if (!state.probes.length) { showError("p", "Press Make prompts first, then paste the chatbot's replies under each prompt."); return; }
+  if (!done.length) { showError("p", "No replies yet. Paste the chatbot's reply under each prompt, then score."); return; }
+  const btn = $("#p-run"); btn.disabled = true; $("#p-results").innerHTML = "";
   const rows = done.map(p => ({ ...p, score: scoreContinuation(p.response, p.reference, metric) }));
   try {
     const r = await later(() => compare(rows.filter(x => x.group === "candidate").map(x => x.score), rows.filter(x => x.group === "control").map(x => x.score), `similarity to the real continuation (${$("#p-metric").selectedOptions[0].text})`));
@@ -840,7 +868,7 @@ async function scoreProbes() {
         <div class="txt"><span class="mono">Real:</span> ${esc(x.reference.split(" ").slice(0, 40).join(" "))}…</div>
         <div class="txt"><span class="mono">Model:</span> ${esc(words(x.response).slice(0, 40).join(" "))}…</div></div>`).join("")}</div></div>`;
     status("p", "");
-  } catch (e) { status("p", e.message, true); }
+  } catch (e) { showError("p", e.message); }
   btn.disabled = false;
 }
 
@@ -875,7 +903,7 @@ function loadTextExample() {
     outs.push({ name: `ai-answer-${k + 1}.txt`, text: t });
   }
   state.text.out = outs;
-  ["mine", "ctrl", "out"].forEach(k => { $(`#text-${k}-paste`).value = ""; renderList("text", k); });
+  ["mine", "ctrl", "out"].forEach(k => { state.text[k].forEach(d => d.example = true); $(`#text-${k}-paste`).value = ""; renderList("text", k); });
   $("#t-chunk").value = 70; state.example.text = true;
 }
 async function synthImage(seed, size = 160) {
@@ -908,6 +936,7 @@ async function loadImageExample() {
   for (let i = 0; i < 20; i++) ctrl.push(await canvasItem(await synthImage(500 + i), `new-work-${String(i + 1).padStart(2, "0")}.png`));
   for (let i = 0; i < 7; i++) out.push(await canvasItem(await synthImage(100 + i * 2), `generated-${i + 1}.jpg`, { jpeg: true, mirror: i % 3 === 0, scale: 1.4, bright: 1.08 }));
   for (let i = 0; i < 17; i++) out.push(await canvasItem(await synthImage(900 + i), `generated-${i + 8}.png`));
+  [...mine, ...ctrl, ...out].forEach(d => d.example = true);
   Object.assign(state.img, { mine, ctrl, out });
   ["mine", "ctrl", "out"].forEach(k => renderList("image", k));
   state.example.img = true; status("i", "");
