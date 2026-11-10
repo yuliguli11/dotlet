@@ -137,6 +137,7 @@ button:hover:not(:disabled) { filter: brightness(1.06); }
 .verdict[data-level="some"] { --v-c: var(--warm); --v-bg: var(--warm-bg); }
 .verdict[data-level="none"] { --v-c: var(--cool); --v-bg: var(--cool-bg); }
 .verdict[data-level="error"] { --v-c: var(--hot); --v-bg: var(--hot-bg); }
+.verdict[data-level="inconclusive"] { --v-c: var(--warm); --v-bg: var(--warm-bg); }
 .verdict .lvl { font: 600 0.75rem var(--f-mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--v-c); }
 .verdict h2 { font-size: clamp(1.25rem, 3vw, 1.6rem); font-weight: 600; }
 .verdict p { margin: 0; max-width: 70ch; }
@@ -179,6 +180,27 @@ button:hover:not(:disabled) { filter: brightness(1.06); }
 .msg:empty { display: none; }
 .msg.ok { color: var(--muted); }
 .help { margin: 0; font-size: 0.88rem; color: var(--muted); }
+.mgroups { display: grid; gap: 16px; }
+.mgroup { display: grid; gap: 8px; }
+.mgroup h4 { margin: 0; font: 600 0.95rem var(--f-body); }
+.mlist { display: flex; flex-wrap: wrap; gap: 8px 18px; }
+.mchk { display: inline-flex; gap: 8px; align-items: center; font-size: 0.95rem; cursor: pointer; }
+.prov { display: grid; grid-template-columns: minmax(0, 200px) minmax(0, 1fr); gap: 8px 14px; align-items: center; padding-block: 8px; border-top: 1px solid var(--line); }
+.provfields { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; min-width: 0; }
+@media (max-width: 700px) { .prov { grid-template-columns: minmax(0, 1fr); } }
+.progress { display: grid; gap: 6px; }
+.progress .bar { height: 8px; background: var(--line); border-radius: 4px; overflow: hidden; }
+.progress .bar span { display: block; height: 100%; width: 0; background: var(--accent); transition: width .3s; }
+#c-ptext { font-size: 0.9rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.tablewrap { overflow-x: auto; }
+.mtable { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+.mtable th { text-align: left; font: 600 0.75rem var(--f-mono); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); padding: 6px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.mtable td { padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.mtable td.num { font-family: var(--f-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pill { font: 600 0.75rem var(--f-mono); padding: 3px 8px; border-radius: 3px; white-space: nowrap; }
+.pill.strong, .pill.error { background: var(--hot-bg); color: var(--hot); }
+.pill.some, .pill.inconclusive { background: var(--warm-bg); color: var(--warm); }
+.pill.none { background: var(--cool-bg); color: var(--cool); }
 .status.err { color: var(--hot); }
 
 /* probe */
@@ -208,22 +230,43 @@ footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--line);
 <div class="wrap">
 <header class="top">
   <div class="brand"><h1><span>dotlet</span></h1></div>
-  <p class="lede">Check whether an AI model was trained on your writing or art. Compare how it treats your work with how it treats similar work it could never have seen, and see whether the difference is bigger than chance.</p>
+  <p class="lede">Check whether AI models were trained on your writing or art. dotlet compares how a model treats your work with how it treats similar work it could never have seen, and tells you whether the difference is bigger than chance.</p>
   <div class="private">
     <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
-    Everything runs in your browser. Your files are never uploaded.
+    Your files are read in your browser. Only Check models sends anything out: passages of your text, to the AI models you pick.
   </div>
 </header>
 
 <nav class="tabs" role="tablist" aria-label="Tests">
+  <a href="#check" role="tab" data-view="check">Check models</a>
   <a href="#text" role="tab" data-view="text">Text overlap</a>
   <a href="#images" role="tab" data-view="images">Image overlap</a>
   <a href="#probe" role="tab" data-view="probe">Completion probe</a>
   <a href="#method" role="tab" data-view="method">How it works</a>
 </nav>
 
+<!-- ============ CHECK MODELS ============ -->
+<section class="view" id="view-check" role="tabpanel">
+  <p class="intro">Add your writing. dotlet shows AI models the first half of passages from it and asks for the rest. A model that memorized your writing during training tends to fill in your real words. To tell memory from good guessing, it runs the same test on control text no model can have seen: rewrites of your passages, or your own unseen writing.</p>
+  <div class="exhibits two" id="check-exhibits"></div>
+  <div class="panel"><h3>Models to check</h3><div id="c-models" class="mgroups"></div></div>
+  <div class="controls">
+    <label class="field">Passages to test<input type="number" id="c-n" value="12" min="5" max="60"></label>
+    <label class="field">Words per passage<input type="number" id="c-words" value="100" min="30" step="10"></label>
+    <div class="actions">
+      <button id="c-example" type="button">Try a famous text</button>
+      <button id="c-stop" type="button" hidden>Stop</button>
+      <button id="c-run" class="primary" type="button">Check models</button>
+    </div>
+  </div>
+  <p class="help">Each model gets two prompts per passage (yours and a control), plus a few prompts to write the rewrites. With thinking models a run can take several minutes.</p>
+  <div class="progress" id="c-progress" hidden><div class="bar"><span id="c-bar"></span></div><span id="c-ptext"></span></div>
+  <div class="status" id="c-status" role="status"></div>
+  <div class="results" id="c-results"></div>
+</section>
+
 <!-- ============ TEXT ============ -->
-<section class="view" id="view-text" role="tabpanel">
+<section class="view" id="view-text" role="tabpanel" hidden>
   <p class="intro">Add your writing, comparable control writing the AI can't have seen, and text the AI produced. dotlet checks whether rare 8-word sequences from your work turn up in the AI's output more often than sequences from the controls. It doesn't detect whether a piece of text was written by AI.</p>
   <div class="exhibits" id="text-exhibits"></div>
   <p class="help">Reads .txt, .md, .html, Word (.docx) and PDF files. If the Add files button doesn't open anything, you may be viewing this inside an app: open the page in a web browser such as Chrome, Safari or Firefox, or paste the text into the boxes instead.</p>
@@ -300,6 +343,15 @@ footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--line);
       </ul>
     </div>
     <div class="panel">
+      <h3>How Check models works</h3>
+      <p>It splits your writing into passages, shows a model the first half of each, and asks for the rest. A score is the share of the real ending's 4-word phrases the model wrote. The same is done for controls: rewrites of each of your passages (made by a separate, quick model) or your own unseen writing. Each passage is compared with its own rewrite, using a sign-flip test and a Wilcoxon signed-rank test.</p>
+      <ul>
+        <li>When several models are checked, each is held to a stricter threshold, so one lucky result doesn't count as evidence.</li>
+        <li>Refusals count as no match and are reported separately. A model that refuses most prompts gets an inconclusive result.</li>
+        <li>Rewrites are written by an AI model. If anything, that makes controls easier for models to continue, which works against finding evidence, not for it.</li>
+      </ul>
+    </div>
+    <div class="panel">
       <h3>Choosing controls matters most</h3>
       <ol>
         <li><b>Unseen by the model.</b> Writing or art you made after the model's training cutoff, or never published. Your own newer work is usually the best control.</li>
@@ -332,7 +384,7 @@ dotlet --help</pre>
   </div>
 </section>
 
-<footer>dotlet runs locally. Nothing you add here leaves this page.</footer>
+<footer>dotlet runs in your browser. The overlap and probe tabs never send your files anywhere. Check models sends passages of your text only to the AI models you select.</footer>
 </div>
 
 <script>
@@ -550,7 +602,9 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const fmtP = p => p < 0.0001 ? "< 0.0001" : p.toPrecision(2);
 const base = s => String(s).split(/[\\/]/).pop();
-const state = { text: { mine: [], ctrl: [], out: [] }, img: { mine: [], ctrl: [], out: [] }, probes: [], example: { text: false, img: false, probe: false } };
+const state = { text: { mine: [], ctrl: [], out: [] }, img: { mine: [], ctrl: [], out: [] }, check: { mine: [], ctrl: [] }, probes: [], example: { text: false, img: false, probe: false, check: false } };
+const stOf = kind => kind === "image" ? state.img : kind === "check" ? state.check : state.text;
+const isText = kind => kind !== "image";
 const TEXT_EXT = /\.(txt|md|markdown|rst|html?|tex|csv|json)$/i;
 
 const EXHIBITS = [
@@ -558,30 +612,29 @@ const EXHIBITS = [
   { key: "ctrl", tag: "Exhibit B", title: "Controls", hint: "Similar work the AI can't have seen, such as pieces you made after its training cutoff." },
   { key: "out", tag: "Exhibit C", title: "AI output", hint: "What the AI produced. Don't include outputs where your work was in the prompt." },
 ];
-function buildExhibits(kind) {
-  const host = $(kind === "text" ? "#text-exhibits" : "#image-exhibits");
-  host.innerHTML = EXHIBITS.map(e => `
+function buildExhibits(kind, host = $(kind === "text" ? "#text-exhibits" : "#image-exhibits"), defs = EXHIBITS) {
+  host.innerHTML = defs.map(e => `
     <div class="exhibit" data-kind="${kind}" data-key="${e.key}"${kind === "image" ? ` tabindex="0" aria-label="${e.title}: click, then paste an image"` : ""}>
       <span class="tag">${e.tag}</span><h3>${e.title}</h3><p>${e.hint}</p>
       <div class="filebtn">
-        <label class="btn small" for="${kind}-${e.key}-file" style="padding:5px 10px;font-size:.85rem">Add ${kind === "text" ? "files" : "images"}</label>
-        <input type="file" id="${kind}-${e.key}-file" multiple${kind === "text" ? "" : ` accept="image/*"`}>
+        <label class="btn small" for="${kind}-${e.key}-file" style="padding:5px 10px;font-size:.85rem">Add ${isText(kind) ? "files" : "images"}</label>
+        <input type="file" id="${kind}-${e.key}-file" multiple${isText(kind) ? "" : ` accept="image/*"`}>
         <button type="button" class="small" data-clear>Clear</button>
       </div>
-      ${kind === "text" ? `<textarea id="${kind}-${e.key}-paste" placeholder="Or paste text here (counts as one file)"></textarea>` : `<p>Or click this box and paste an image.</p>`}
+      ${isText(kind) ? `<textarea id="${kind}-${e.key}-paste" placeholder="Or paste text here (counts as one file)"></textarea>` : `<p>Or click this box and paste an image.</p>`}
       <div class="msg" data-msg aria-live="polite"></div>
-      <div class="${kind === "text" ? "filelist" : "thumbs"}" data-list></div>
+      <div class="${isText(kind) ? "filelist" : "thumbs"}" data-list></div>
     </div>`).join("");
   host.querySelectorAll(".exhibit").forEach(box => {
     const key = box.dataset.key, input = box.querySelector("input[type=file]");
     const add = files => addFiles(kind, key, [...files]);
     input.addEventListener("change", () => { add(input.files); input.value = ""; });
-    box.querySelector("[data-clear]").addEventListener("click", () => { state[kind === "text" ? "text" : "img"][key] = []; const ta = box.querySelector("textarea"); if (ta) ta.value = ""; box.querySelector("[data-msg]").textContent = ""; renderList(kind, key); });
+    box.querySelector("[data-clear]").addEventListener("click", () => { stOf(kind)[key] = []; const ta = box.querySelector("textarea"); if (ta) ta.value = ""; box.querySelector("[data-msg]").textContent = ""; renderList(kind, key); });
     box.addEventListener("dragover", e => { e.preventDefault(); box.classList.add("dragover"); });
     box.addEventListener("dragleave", () => box.classList.remove("dragover"));
     box.addEventListener("drop", e => { e.preventDefault(); box.classList.remove("dragover"); add(e.dataTransfer.files); });
     const ta = box.querySelector("textarea");
-    if (ta) ta.addEventListener("input", () => { if (ta.value.trim()) dropExample("text"); });
+    if (ta) ta.addEventListener("input", () => { if (ta.value.trim()) dropExample(kind); });
     if (kind === "image") box.addEventListener("paste", e => {
       const files = [...(e.clipboardData?.files || [])];
       if (files.length) { e.preventDefault(); add(files); }
@@ -646,9 +699,10 @@ async function readTextFile(f) {
 }
 const BOX_NAMES = { mine: "Your work (Exhibit A)", ctrl: "Controls (Exhibit B)", out: "AI output (Exhibit C)" };
 function dropExample(kind) {
-  const st = kind === "text" ? state.text : state.img;
+  const st = stOf(kind);
   if (!Object.values(st).some(a => a.some(d => d.example))) return;
-  for (const k of ["mine", "ctrl", "out"]) { st[k] = st[k].filter(d => !d.example); renderList(kind, k); }
+  for (const k of Object.keys(st)) { st[k] = st[k].filter(d => !d.example); renderList(kind, k); }
+  if (kind === "check") { state.example.check = false; $("#c-words").value = 100; $("#c-results").innerHTML = CHECK_EMPTY; return; }
   if (kind === "text") {
     state.example.text = false; $("#t-chunk").value = 200;
     if (state.example.probe) { state.probes = []; state.example.probe = false; renderProbes(); $("#p-results").innerHTML = ""; $("#p-chunk").value = 120; status("p", ""); }
@@ -672,12 +726,12 @@ async function addFiles(kind, key, files) {
   const problems = []; let added = 0;
   msg.className = "msg ok"; msg.textContent = `Reading ${files.length} file${files.length === 1 ? "" : "s"}...`;
   for (const f of files) {
-    const name = f.name || (kind === "text" ? "pasted file" : "pasted-image.png");
+    const name = f.name || (isText(kind) ? "pasted file" : "pasted-image.png");
     try {
-      if (kind === "text") {
+      if (isText(kind)) {
         const t = await readTextFile(f);
         if (!t.trim()) throw new Error("it's empty");
-        state.text[key].push({ name, text: t }); added++;
+        stOf(kind)[key].push({ name, text: t }); added++;
       } else {
         if (f.type && !f.type.startsWith("image/")) throw new Error("it isn't an image");
         let src;
@@ -689,13 +743,13 @@ async function addFiles(kind, key, files) {
   }
   msg.className = "msg";
   msg.innerHTML = problems.map(m => `<span>${esc(m)}</span>`).join("");
-  if (added) state.example[kind === "text" ? "text" : "img"] = false;
+  if (added) state.example[kind === "image" ? "img" : kind] = false;
   renderList(kind, key);
 }
 function renderList(kind, key) {
   const box = document.querySelector(`.exhibit[data-kind="${kind}"][data-key="${key}"]`), list = box.querySelector("[data-list]");
-  if (kind === "text") {
-    const items = state.text[key], words_ = items.reduce((s, d) => s + d.text.split(/\s+/).filter(Boolean).length, 0);
+  if (isText(kind)) {
+    const items = stOf(kind)[key], words_ = items.reduce((s, d) => s + d.text.split(/\s+/).filter(Boolean).length, 0);
     list.innerHTML = items.length ? (items.some(d => d.example) ? `<span class="example-flag">Example</span>` : "") + `<span class="count">${items.length} file${items.length > 1 ? "s" : ""}, ${words_.toLocaleString()} words</span>` + items.slice(0, 12).map(d => `<span>${esc(base(d.name))}</span>`).join("") + (items.length > 12 ? `<span>+${items.length - 12} more</span>` : "") : "";
   } else {
     const items = state.img[key];
@@ -703,8 +757,8 @@ function renderList(kind, key) {
   }
 }
 function status(p, msg, err = false) { const el = $(`#${p}-status`); el.textContent = msg; el.classList.toggle("err", err); }
-function textDocs(key) {
-  const docs = state.text[key].slice(), ta = $(`#text-${key}-paste`);
+function textDocs(key, kind = "text") {
+  const docs = stOf(kind)[key].slice(), ta = $(`#${kind}-${key}-paste`);
   if (ta && ta.value.trim()) docs.push({ name: `pasted-${key}`, text: ta.value });
   return docs;
 }
@@ -743,8 +797,8 @@ const VERDICTS = {
   some: ["Some sign the AI learned from your work", "The AI reproduces your work more than the controls, more often than chance would explain, but the signal is modest. Add more material and controls to firm it up."],
   none: ["No sign the AI reproduced your work", "The AI's output doesn't contain more of your work than of the controls. This doesn't tell you whether the text was written by AI, only that it didn't copy your work. It also isn't proof the AI never saw your work: models rarely copy word for word when asked to write something new. For a more direct test, use the Completion probe tab."],
 };
-function resultBlock(r, unitLabel, extraTitle, copies = 0) {
-  let [h, p] = VERDICTS[r.level], level = r.level;
+function resultBlock(r, unitLabel, extraTitle, copies = 0, verdicts = VERDICTS) {
+  let [h, p] = verdicts[r.level], level = r.level;
   if (copies && r.level === "none") {
     level = "some"; h = `${copies} copied ${copies > 1 ? "pieces" : "piece"} found, but no consistent pattern`;
     p = "Some individual matches go far beyond anything the controls produced, so look at them below. Across all your work, though, the model doesn't favor it more than chance would explain.";
@@ -754,13 +808,13 @@ function resultBlock(r, unitLabel, extraTitle, copies = 0) {
   <div class="panel">
     <h3>The numbers</h3>
     <div class="stats">
-      <div class="stat"><span class="k">AUC</span><span class="v">${r.auc.toFixed(3)}</span><span class="d">95% CI ${r.ci[0].toFixed(2)} to ${r.ci[1].toFixed(2)}</span></div>
-      <div class="stat"><span class="k">p, permutation</span><span class="v">${fmtP(r.pPerm)}</span><span class="d">10,000 shuffles</span></div>
-      <div class="stat"><span class="k">p, Mann-Whitney</span><span class="v">${fmtP(r.pMw)}</span><span class="d">one-sided</span></div>
+      <div class="stat"><span class="k">AUC</span><span class="v">${r.auc.toFixed(3)}</span><span class="d">${Math.round((1 - r.alpha) * 1000) / 10}% CI ${r.ci[0].toFixed(2)} to ${r.ci[1].toFixed(2)}</span></div>
+      <div class="stat"><span class="k">${r.labels ? r.labels[0] : "p, permutation"}</span><span class="v">${fmtP(r.pPerm)}</span><span class="d">${r.labels ? r.labels[1] : "10,000 shuffles"}</span></div>
+      <div class="stat"><span class="k">${r.labels ? r.labels[2] : "p, Mann-Whitney"}</span><span class="v">${fmtP(r.pMw)}</span><span class="d">one-sided</span></div>
       <div class="stat"><span class="k">Compared</span><span class="v">${r.nPos} / ${r.nNeg}</span><span class="d">${unitLabel}: yours / controls</span></div>
     </div>
     <div class="charts">
-      <div class="chart"><p class="sub">AUC with its 95% interval. Right of the dashed line means your work scores higher.</p>${aucChart(r)}</div>
+      <div class="chart"><p class="sub">AUC with its ${Math.round((1 - r.alpha) * 1000) / 10}% interval. Right of the dashed line means your work scores higher.</p>${aucChart(r)}</div>
       <div class="chart"><p class="sub">Each dot is one ${unitLabel.replace(/s$/, "")}: ${esc(r.metric)}.</p>${stripChart(r)}
         <div class="legend"><span><i style="background:var(--yours)"></i>yours, mean ${r.meanPos.toFixed(3)}</span><span><i style="background:var(--control)"></i>controls, mean ${r.meanNeg.toFixed(3)}</span></div></div>
     </div>
@@ -953,16 +1007,384 @@ function loadProbeExample() {
   status("p", "Example replies filled in: a model that recalls part of most of your passages.");
 }
 
+/* ============================================================ check models
+   Show each model the first half of passages from your writing, ask for the
+   rest, and compare with rewrites of the same passages that no model can have
+   seen (or with your own unseen writing). */
+const CHECK_EMPTY = `<div class="empty">Results appear here, one row per model: does it fill in your real words better than it fills in text it can't have seen?</div>`;
+const CHECK_VERDICTS = {
+  strong: ["Strong sign this model memorized your writing", "Given the start of a passage, it fills in your real words far more often than it does for the controls. That's consistent with your writing being in its training data."],
+  some: ["Some sign this model memorized your writing", "It fills in your real words more often than chance would explain, but the signal is modest. Test more passages to firm it up."],
+  none: ["No sign this model memorized your writing", "It doesn't fill in your real words any better than it fills in the controls. That isn't proof it never trained on your writing: models memorize only a small share of what they read, mostly text that appears many times online."],
+};
+const CLAUDE_MODELS = [
+  { id: "claude-opus-5-5", label: "Claude Opus 5.5", on: true },
+  { id: "claude-sonnet-5-5", label: "Claude Sonnet 5.5" },
+  { id: "claude-haiku-5-5", label: "Claude Haiku 5.5" },
+  { id: "claude-fable-5-2", label: "Claude Fable 5.2" },
+];
+const PROVIDERS = {
+  anthropic: { name: "Anthropic API", key: "API key from the Anthropic Console", models: "claude-opus-5-5, claude-sonnet-5-5" },
+  openai: { name: "OpenAI", key: "API key from your OpenAI account", models: "" },
+  gemini: { name: "Google Gemini", key: "API key from Google AI Studio", models: "" },
+  openrouter: { name: "OpenRouter", key: "API key from OpenRouter (one key, many models)", models: "" },
+  custom: { name: "Other OpenAI-compatible server", key: "API key, if the server needs one", models: "", base: true },
+};
+const CHECK_PROMPT = "Continue the following passage exactly as it appears in its original source. Output only the continuation, with no commentary.\n\n";
+let sampleFn = null, checkCtl = null;
+const inViewer = !!(window.claude && window.claude.use);
+const tierOf = id => /haiku/.test(id) ? "quick" : /sonnet/.test(id) ? "default" : "complex";
+const sleep = (ms, signal) => new Promise((res, rej) => { const t = setTimeout(res, ms); signal?.addEventListener("abort", () => { clearTimeout(t); rej(new DOMException("aborted", "AbortError")); }, { once: true }); });
+
+function renderModelPicker() {
+  const claudeBlock = inViewer ? (sampleFn
+    ? `<div class="mgroup"><h4>Claude, through your Claude account</h4>
+        <p class="help">No API key needed. Your first check asks you to allow this page to use Claude, and it counts toward your own Claude usage.</p>
+        <div class="mlist">${CLAUDE_MODELS.map(m => `<label class="mchk"><input type="checkbox" id="cm-${m.id}" data-sample="${m.id}"${m.on ? " checked" : ""}> ${m.label}</label>`).join("")}</div></div>`
+    : `<div class="mgroup"><h4>Claude, through your Claude account</h4><p class="help" id="c-sample-wait">Checking whether this page can use Claude...</p></div>`) : "";
+  const apiBlock = inViewer
+    ? `<div class="mgroup"><h4>Other models (OpenAI, Google, OpenRouter, your own server)</h4>
+        <p class="help">Pages published on Claude can't contact other services, so these need the standalone version of this page: open <code>web/index.html</code> from the dotlet repository in your browser, or host it on GitHub Pages. Your API keys then go straight from your browser to each provider.</p></div>`
+    : `<div class="mgroup"><h4>Models, using your own API keys</h4>
+        <p class="help">Keys stay in this tab's memory and go straight from your browser to that provider. They're never saved or sent anywhere else.</p>
+        ${Object.entries(PROVIDERS).map(([id, pv]) => `
+        <div class="prov" data-prov="${id}">
+          <label class="mchk"><input type="checkbox" id="pv-${id}-on"> ${pv.name}</label>
+          <div class="provfields">
+            <input type="password" id="pv-${id}-key" placeholder="${pv.key}" autocomplete="off" aria-label="${pv.name} API key">
+            <input type="text" id="pv-${id}-models" placeholder="Model IDs, separated by commas" value="${pv.models}" aria-label="${pv.name} model IDs">
+            ${pv.base ? `<input type="text" id="pv-${id}-base" placeholder="Server URL, e.g. http://localhost:11434/v1" aria-label="Server URL">` : ""}
+          </div>
+        </div>`).join("")}</div>`;
+  $("#c-models").innerHTML = claudeBlock + apiBlock;
+  $("#c-models").querySelectorAll(".prov input:not([type=checkbox])").forEach(inp => inp.addEventListener("input", () => {
+    const row = inp.closest(".prov"); if (inp.value.trim() && inp.type === "password") row.querySelector("input[type=checkbox]").checked = true;
+  }));
+}
+function selectedTargets() {
+  const out = [];
+  document.querySelectorAll("#c-models input[data-sample]:checked").forEach(cb => {
+    const m = CLAUDE_MODELS.find(x => x.id === cb.dataset.sample);
+    out.push({ kind: "sample", model: m.id, label: m.label + " (your Claude account)" });
+  });
+  for (const id of Object.keys(PROVIDERS)) {
+    const on = $(`#pv-${id}-on`); if (!on || !on.checked) continue;
+    const key = $(`#pv-${id}-key`).value.trim(), base = $(`#pv-${id}-base`)?.value.trim();
+    const models = $(`#pv-${id}-models`).value.split(",").map(x => x.trim()).filter(Boolean);
+    if (!models.length) throw new Error(`Type at least one model ID for ${PROVIDERS[id].name}, or untick it.`);
+    if (!key && id !== "custom") throw new Error(`Paste your ${PROVIDERS[id].name} API key, or untick it.`);
+    if (id === "custom" && !base) throw new Error("Type the server URL for your OpenAI-compatible server, or untick it.");
+    models.forEach(m => out.push({ kind: "api", provider: id, model: m, key, base, label: `${m} (${PROVIDERS[id].name})` }));
+  }
+  return out;
+}
+
+/* ---- providers (standalone page only) */
+class ProviderError extends Error { constructor(status, msg) { super(msg); this.status = status; } }
+async function postJSON(url, headers, body, signal, who) {
+  for (let attempt = 0; ; attempt++) {
+    let res;
+    try { res = await fetch(url, { method: "POST", headers: { "content-type": "application/json", ...headers }, body: JSON.stringify(body), signal }); }
+    catch (e) {
+      if (signal.aborted) throw e;
+      if (attempt < 3) { await sleep(2000 * 2 ** attempt, signal); continue; }
+      throw new ProviderError(0, `Couldn't reach ${who}. Check your connection; some providers also block requests sent straight from a web page.`);
+    }
+    const txt = await res.text(); let j = null; try { j = JSON.parse(txt); } catch { }
+    if (res.ok) return j;
+    const msg = (Array.isArray(j) ? j[0]?.error?.message : null) || j?.error?.message || j?.message || txt.slice(0, 200) || res.statusText;
+    if ([408, 409, 429, 500, 502, 503, 504, 529].includes(res.status) && attempt < 3) { await sleep(2000 * 2 ** attempt, signal); continue; }
+    throw new ProviderError(res.status, `${who} said: ${msg}`);
+  }
+}
+async function callProvider(t, prompt, signal) {
+  const who = PROVIDERS[t.provider].name;
+  if (t.provider === "anthropic") {
+    // Raw HTTP: this is a no-build static page. No temperature (current models reject it); low effort to keep runs quick.
+    // No refusal fallbacks on purpose: a fallback would swap in a different model mid-test.
+    const headers = { "x-api-key": t.key, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" };
+    const body = { model: t.model, max_tokens: 4000, messages: [{ role: "user", content: prompt }], output_config: { effort: "low" } };
+    let j;
+    try { j = await postJSON("https://api.anthropic.com/v1/messages", headers, body, signal, who); }
+    catch (e) { if (e.status === 400 && /effort|output_config/i.test(e.message)) { delete body.output_config; j = await postJSON("https://api.anthropic.com/v1/messages", headers, body, signal, who); } else throw e; }
+    if (j.stop_reason === "refusal") return { text: "", declined: "refused" };
+    return { text: (j.content || []).filter(b => b.type === "text").map(b => b.text).join(""), servedBy: j.model };
+  }
+  if (t.provider === "gemini") {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(t.model)}:generateContent`;
+    const j = await postJSON(url, { "x-goog-api-key": t.key }, { contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: { temperature: 0, maxOutputTokens: 4096 } }, signal, who);
+    const c = j.candidates?.[0];
+    if (!c) return { text: "", declined: "blocked" };
+    if (c.finishReason === "RECITATION") return { text: "", declined: "recitation" };
+    if (["SAFETY", "BLOCKLIST", "PROHIBITED_CONTENT", "SPII"].includes(c.finishReason)) return { text: "", declined: "blocked" };
+    return { text: (c.content?.parts || []).map(x => x.text || "").join("") };
+  }
+  const base = t.provider === "openai" ? "https://api.openai.com/v1" : t.provider === "openrouter" ? "https://openrouter.ai/api/v1" : t.base.replace(/\/+$/, "");
+  const headers = t.key ? { authorization: `Bearer ${t.key}` } : {};
+  const body = { model: t.model, messages: [{ role: "user", content: prompt }], temperature: 0 };
+  if (t.provider === "openai") body.max_completion_tokens = 4000; else body.max_tokens = 4000;
+  let j;
+  for (let tries = 0; ; tries++) {
+    try { j = await postJSON(base + "/chat/completions", headers, body, signal, who); break; }
+    catch (e) {
+      if (e.status !== 400 || tries > 2) throw e;
+      if (/temperature/i.test(e.message) && "temperature" in body) delete body.temperature;
+      else if (/max_completion_tokens/i.test(e.message) && body.max_completion_tokens) { body.max_tokens = body.max_completion_tokens; delete body.max_completion_tokens; }
+      else if (/max_tokens/i.test(e.message) && body.max_tokens) { body.max_completion_tokens = body.max_tokens; delete body.max_tokens; }
+      else throw e;
+    }
+  }
+  const c = j.choices?.[0], m = c?.message || {};
+  if (m.refusal) return { text: "", declined: "refused" };
+  if (c?.finish_reason === "content_filter") return { text: "", declined: "blocked" };
+  const content = Array.isArray(m.content) ? m.content.map(x => x.text || "").join("") : (m.content || "");
+  return { text: content, servedBy: j.model };
+}
+const FATAL_SAMPLE = new Set(["not_granted", "sampling_disabled", "not_declared", "capability_disabled", "capability_removed", "session_expired", "rate_limited"]);
+async function ask(t, prompt, signal) {
+  if (t.kind === "sample") {
+    try {
+      const r = await sampleFn(prompt, { model: t.model, modelTier: tierOf(t.model), effort: "low", signal });
+      return { text: r.text, substituted: r.modelApplied !== t.model, servedBy: r.modelApplied || `${r.modelTierApplied} tier` };
+    } catch (e) {
+      if (e && e.code === "refused") return { text: "", declined: "refused" };
+      throw e;
+    }
+  }
+  return callProvider(t, prompt, signal);
+}
+
+/* ---- passages, rewrites, scoring */
+function pickPassages(docs, words, n) {
+  let ch = chunkDocs(docs, words).filter(c => c.text.split(" ").length >= Math.floor(words * 0.8));
+  if (ch.length > n) { const step = ch.length / n; ch = Array.from({ length: n }, (_, i) => ch[Math.floor(i * step)]); }
+  return ch.map(c => ({ id: c.id, text: c.text }));
+}
+function splitPassage(text) { const t = text.split(" "), k = Math.max(1, Math.floor(t.length / 2)); return { prefix: t.slice(0, k).join(" "), reference: t.slice(k).join(" ") }; }
+function share4(a, b) { const A = ngramSet(words(a), 4), B = ngramSet(words(b), 4); let k = 0; for (const x of A) if (B.has(x)) k++; return A.size ? k / A.size : 0; }
+function parseJSONArray(text) { const i = text.indexOf("["), j = text.lastIndexOf("]"); if (i < 0 || j < i) throw new Error("no JSON array in the reply"); return JSON.parse(text.slice(i, j + 1)); }
+async function makeRewrites(passages, rewriter, signal, onStep) {
+  const out = new Array(passages.length).fill(null);
+  for (let s = 0; s < passages.length; s += 8) {
+    const batch = passages.slice(s, s + 8);
+    const prompt = "Rewrite each passage below in completely different words, as a new piece of writing in the same genre. Keep the meaning, tone and roughly the same number of words. Do not reuse any run of four or more consecutive words from the original. Reply with only a JSON array of strings, one rewrite per passage, in the same order.\n\n" + JSON.stringify(batch.map(p => p.text));
+    let arr;
+    if (rewriter.kind === "sample") arr = await sampleFn.json(prompt, { modelTier: "quick", signal });
+    else arr = parseJSONArray((await callProvider(rewriter, prompt, signal)).text);
+    if (!Array.isArray(arr)) throw new Error("the rewrite reply wasn't a list");
+    batch.forEach((p, i) => {
+      const r = typeof arr[i] === "string" ? arr[i].trim() : "";
+      const ratio = r.split(/\s+/).length / p.text.split(" ").length;
+      if (r && ratio > 0.6 && ratio < 1.6 && share4(r, p.text) <= 0.25) out[s + i] = r;
+    });
+    onStep?.(Math.min(s + 8, passages.length));
+  }
+  return out;
+}
+function cleanReply(text) {
+  let t = text.trim();
+  t = t.replace(/^(here(?:'s| is)[^\n]{0,80}:)\s*/i, "").replace(/^>\s?/gm, "").replace(/^["“'….]+|["”']+$/g, "").trim();
+  return t;
+}
+function looksDeclined(text) {
+  const head = text.slice(0, 320);
+  return /^(?:\W*)(?:I(?:'m| am) (?:not able|unable|sorry)|I can(?:'|no)?t|I won't|I don't (?:have|recognize|know)|Sorry|Unfortunately)/i.test(head)
+    && /(passage|text|source|reproduce|copyright|continu|recogni|verbatim|quote)/i.test(head);
+}
+function signFlip(d, B = 10000, seed = 0) {
+  if (!d.length) return NaN;
+  const rng = mulberry32(seed + 11), obs = d.reduce((a, b) => a + b, 0); let hits = 0;
+  for (let b = 0; b < B; b++) { let s = 0; for (const x of d) s += rng() < 0.5 ? x : -x; if (s >= obs - 1e-12) hits++; }
+  return (hits + 1) / (B + 1);
+}
+function wilcoxonGreater(d) {
+  const nz = d.filter(x => x !== 0), n = nz.length;
+  if (!n) return 1;
+  const r = ranks(nz.map(Math.abs)); let w = 0; nz.forEach((x, i) => { if (x > 0) w += r[i]; });
+  const counts = new Map(); for (const x of nz.map(Math.abs)) counts.set(x, (counts.get(x) || 0) + 1);
+  let tie = 0; for (const t of counts.values()) tie += t ** 3 - t;
+  const v = n * (n + 1) * (2 * n + 1) / 24 - tie / 48;
+  if (v <= 0) return 1;
+  return 0.5 * erfc(((w - n * (n + 1) / 4 - 0.5) / Math.sqrt(v)) / Math.SQRT2);
+}
+function comparePaired(pos, neg, metric, { alpha = 0.05, B = 10000, Bboot = 2000, seed = 0 } = {}) {
+  const n = pos.length, d = pos.map((x, i) => x - neg[i]), notes = [];
+  if (n < 10) notes.push(`Only ${n} passage pairs. Test more passages for a reliable result.`);
+  const rng = mulberry32(seed + 5), boots = [];
+  for (let b = 0; b < Bboot; b++) { const idx = pos.map(() => Math.floor(rng() * n)); boots.push(auc(idx.map(i => pos[i]), idx.map(i => neg[i]))); }
+  boots.sort((a, b) => a - b);
+  const ci = [boots[Math.floor(alpha / 2 * (Bboot - 1))], boots[Math.ceil((1 - alpha / 2) * (Bboot - 1))]];
+  const pPerm = signFlip(d, B, seed), pMw = wilcoxonGreater(d), p = Math.max(pPerm, pMw);
+  const level = (p < alpha / 5 && ci[0] > 0.5) ? "strong" : (p < alpha ? "some" : "none");
+  const mean = x => x.reduce((s, v) => s + v, 0) / x.length;
+  return { metric, nPos: n, nNeg: n, meanPos: mean(pos), meanNeg: mean(neg), auc: auc(pos, neg), ci, pPerm, pMw, alpha, level, notes, pos, neg,
+    labels: ["p, sign-flip test", "paired, 10,000 flips", "p, Wilcoxon signed-rank"] };
+}
+function markShared(gen, ref, n = 4) {
+  const g = words(gen).slice(0, words(ref).length), R = ngramSet(words(ref), n), hit = new Array(g.length).fill(false);
+  for (let i = 0; i + n <= g.length; i++) if (R.has(g.slice(i, i + n).join(" "))) for (let k = i; k < i + n; k++) hit[k] = true;
+  let out = "", open = false;
+  g.forEach((w, i) => { if (hit[i] && !open) { out += "<mark>"; open = true; } if (!hit[i] && open) { out += "</mark>"; open = false; } out += esc(w) + (i < g.length - 1 ? " " : ""); });
+  return out + (open ? "</mark>" : "");
+}
+
+/* ---- run */
+function setProgress(done, total, text) {
+  $("#c-progress").hidden = false;
+  $("#c-bar").style.width = `${total ? Math.round(done / total * 100) : 0}%`;
+  $("#c-ptext").textContent = text;
+}
+function sampleErrorText(e) {
+  return ({ not_granted: "Claude access wasn't allowed for this page. Reload the page to be asked again.",
+    sampling_disabled: "Claude isn't available for your account here.",
+    session_expired: "Your Claude session expired. Sign in again, then retry.",
+    rate_limited: "You've hit a Claude usage or rate limit. Wait a while, or test fewer passages or models." })[e.code]
+    || `Claude couldn't answer (${e.code || "error"}).`;
+}
+async function runCheck() {
+  const results = $("#c-results");
+  try {
+    const docs = textDocs("mine", "check"), own = textDocs("ctrl", "check");
+    if (!docs.length) throw new Error("Add your writing first (files or pasted text).");
+    const targets = selectedTargets();
+    if (!targets.length) throw new Error("Pick at least one model to check.");
+    const words_ = +$("#c-words").value, N = +$("#c-n").value;
+    const passages = pickPassages(docs, words_, N);
+    if (passages.length < 5) throw new Error(`Your writing gives only ${passages.length} passage${passages.length === 1 ? "" : "s"} of ${words_} words, and the test needs at least 5. Add more text or lower "Words per passage".`);
+    let controls = null, paired = true;
+    if (own.length) { controls = pickPassages(own, words_, N); paired = false; if (controls.length < 5) throw new Error(`Your unseen writing gives only ${controls.length} passages of ${words_} words. Add more, or clear that box to use automatic rewrites.`); }
+    checkCtl = new AbortController(); const signal = checkCtl.signal;
+    $("#c-run").disabled = true; $("#c-stop").hidden = false; status("c", "");
+    results.innerHTML = "";
+    if (!controls) {
+      setProgress(0, passages.length, "Writing rewrites of your passages to use as controls...");
+      const rewriter = targets.find(t => t.kind === "sample") || targets[0];
+      const rw = await makeRewrites(passages, rewriter, signal, k => setProgress(k, passages.length, `Writing rewrites to use as controls: ${k} of ${passages.length}`));
+      controls = rw.map((t, i) => t ? { id: passages[i].id + "~rewrite", text: t } : null);
+    }
+    const probes = [];
+    passages.forEach((p, i) => probes.push({ i, group: "yours", ...splitPassage(p.text), source: p.id }));
+    controls.forEach((p, i) => { if (p) probes.push({ i, group: "control", ...splitPassage(p.text), source: p.id }); });
+    const usable = paired ? new Set(controls.map((c, i) => c ? i : -1).filter(i => i >= 0)) : null;
+    if (paired && usable.size < 5) throw new Error("Couldn't make enough usable rewrites of your passages. Try again, or add your own unseen writing as controls.");
+    const rng = mulberry32(Date.now() % 1e9); const order = probes.map((_, k) => k).sort(() => rng() - 0.5);
+    const alpha = 0.05 / targets.length, total = targets.length * probes.length; let done = 0;
+    const summary = [];
+    results.innerHTML = `<div class="panel"><h3>Results</h3><div class="tablewrap"><table class="mtable"><thead><tr><th>Model</th><th>Result</th><th>AUC</th><th>p</th><th>Declined (yours / controls)</th></tr></thead><tbody id="c-rows"></tbody></table></div>
+      <p class="sub">${targets.length > 1 ? `Each model is tested at a stricter threshold (${(alpha).toPrecision(2)} instead of 0.05) because ${targets.length} models are checked at once. ` : ""}Controls: ${paired ? "rewrites of your own passages that no model can have seen" : "your own unseen writing"}. Click a model for details.</p></div><div id="c-details" class="results"></div>`;
+    for (const t of targets) {
+      const replies = new Array(probes.length); let fatal = null, errors = 0, subs = 0;
+      let next = 0;
+      const worker = async () => {
+        while (next < order.length && !fatal) {
+          const k = order[next++], p = probes[k];
+          try {
+            const r = await ask(t, CHECK_PROMPT + p.prefix, signal);
+            if (r.substituted) subs++;
+            replies[k] = r;
+          } catch (e) {
+            if (signal.aborted) throw e;
+            if (t.kind === "sample" && FATAL_SAMPLE.has(e?.code)) { fatal = sampleErrorText(e); break; }
+            if (t.kind === "api" && [400, 401, 403, 404].includes(e.status)) { fatal = e.message; break; }
+            errors++; replies[k] = { error: true };
+          }
+          done++; setProgress(done, total, `Checking ${t.label}: ${done} of ${total} prompts`);
+        }
+      };
+      await Promise.all([worker(), worker()]);
+      if (fatal || errors > probes.length * 0.3) {
+        summary.push({ t, failed: fatal || `${errors} of ${probes.length} requests failed.` });
+        renderCheckResults(summary, probes, paired);
+        // account-wide Claude problems (not allowed, usage limit, signed out) would hit every remaining Claude model too
+        if (t.kind === "sample" && /allowed|usage|session|available/.test(fatal || "")) break;
+        continue;
+      }
+      // score
+      const rows = probes.map((p, k) => {
+        const r = replies[k] || { error: true };
+        if (r.error) return { ...p, error: true };
+        const declined = r.declined || (looksDeclined(r.text) ? "declined" : null);
+        return { ...p, reply: r.text, declined, score: declined ? 0 : scoreContinuation(cleanReply(r.text), p.reference, "ngram") };
+      });
+      let res;
+      if (paired) {
+        const byI = new Map(); rows.forEach(r => { if (!r.error && usable.has(r.i)) { const o = byI.get(r.i) || {}; o[r.group] = r.score; byI.set(r.i, o); } });
+        const pairs = [...byI.values()].filter(o => o.yours != null && o.control != null);
+        res = comparePaired(pairs.map(o => o.yours), pairs.map(o => o.control), "share of the real ending's 4-word phrases the model wrote", { alpha });
+      } else {
+        res = compare(rows.filter(r => r.group === "yours" && !r.error).map(r => r.score), rows.filter(r => r.group === "control" && !r.error).map(r => r.score), "share of the real ending's 4-word phrases the model wrote", { alpha });
+      }
+      const dec = g => rows.filter(r => r.group === g && r.declined).length, tot = g => rows.filter(r => r.group === g && !r.error).length;
+      const decY = dec("yours"), decC = dec("control");
+      if (errors) res.notes.push(`${errors} request${errors > 1 ? "s" : ""} failed and ${errors > 1 ? "were" : "was"} left out.`);
+      if (subs) res.notes.push(`${subs} repl${subs > 1 ? "ies" : "y"} came from a different model than ${t.model}, because it wasn't available to your account. This row isn't specific to that model.`);
+      const recit = rows.filter(r => r.declined === "recitation");
+      const rY = recit.filter(r => r.group === "yours").length, rC = recit.filter(r => r.group === "control").length;
+      if (recit.length) res.notes.push(`Google blocked ${rY} of your passages and ${rC} controls for reciting existing text.${rY > rC + 1 ? " Blocking your passages more than the controls suggests its training data contains them." : ""}`);
+      if (decY > decC + 2) res.notes.push(`It declined your passages more often than the controls (${decY} vs ${decC}). Declines count as no match, so this lowers the score, but refusing mainly your text can itself mean the model recognizes it.`);
+      if ((decY + decC) > 0.5 * (tot("yours") + tot("control"))) res.level = "inconclusive";
+      summary.push({ t, res, rows, decY, decC, totY: tot("yours"), totC: tot("control") });
+      renderCheckResults(summary, probes, paired);
+    }
+    $("#c-progress").hidden = true;
+    status("c", state.example.check ? "Finished. This was the example text, which every model has seen many times." : "Finished.");
+  } catch (e) {
+    if (checkCtl?.signal.aborted || e?.code === "cancelled" || e?.name === "AbortError") { status("c", "Stopped. Results so far are shown above."); }
+    else if (e && e.code) showError("c", sampleErrorText(e));
+    else showError("c", e.message || String(e));
+    $("#c-progress").hidden = true;
+  } finally {
+    $("#c-run").disabled = false; $("#c-stop").hidden = true;
+  }
+}
+const LEVEL_TEXT = { strong: "Strong sign", some: "Some sign", none: "No sign", inconclusive: "Inconclusive" };
+function renderCheckResults(summary, probes, paired) {
+  $("#c-rows").innerHTML = summary.map((s, k) => s.failed
+    ? `<tr><td>${esc(s.t.label)}</td><td colspan="4"><span class="pill error">Couldn't check</span> ${esc(s.failed)}</td></tr>`
+    : `<tr><td><a href="#check" data-detail="${k}">${esc(s.t.label)}</a></td><td><span class="pill ${s.res.level}">${LEVEL_TEXT[s.res.level]}</span></td>
+       <td class="num">${s.res.auc.toFixed(2)}</td><td class="num">${fmtP(Math.max(s.res.pPerm, s.res.pMw))}</td><td class="num">${s.decY} / ${s.decC}</td></tr>`).join("");
+  $("#c-details").innerHTML = summary.map((s, k) => s.failed ? "" : `
+    <details class="box" id="c-detail-${k}"${summary.length === 1 ? " open" : ""}><summary>${esc(s.t.label)}</summary>
+      <div class="results">${s.res.level === "inconclusive"
+        ? `<div class="verdict" data-level="inconclusive"><span class="lvl">${esc(s.t.label)}</span><h2>Inconclusive: this model declined most of the prompts</h2><p>It refused or said it didn't recognize the text for more than half the passages, so there's too little to compare. Declines on your passages and on the controls: ${s.decY} and ${s.decC}.</p></div>${s.res.notes.length ? `<ul class="notes">${s.res.notes.map(n => `<li>${esc(n)}</li>`).join("")}</ul>` : ""}`
+        : resultBlock(s.res, "passages", s.t.label, 0, CHECK_VERDICTS)}
+      <div class="panel"><h3>Your passages it continued most closely</h3><p class="sub">Highlighted words are 4-word phrases the model wrote that also appear in your real ending.</p><div class="runs">${
+        s.rows.filter(r => r.group === "yours" && !r.error && !r.declined).sort((a, b) => b.score - a.score).slice(0, 3).map(r => `
+        <div class="run"><div class="meta"><b>${Math.round(r.score * 100)}% of phrases matched</b><span>${esc(base(r.source))}</span></div>
+          <div class="txt"><span class="mono">Your ending:</span> ${esc(r.reference.split(" ").slice(0, 60).join(" "))}${r.reference.split(" ").length > 60 ? "…" : ""}</div>
+          <div class="txt"><span class="mono">Model wrote:</span> ${markShared(cleanReply(r.reply), r.reference)}</div></div>`).join("") || `<div class="empty">No usable replies to show.</div>`}</div></div>
+      </div></details>`).join("");
+}
+const GENESIS = "In the beginning God created the heaven and the earth. And the earth was without form, and void; and darkness was upon the face of the deep. And the Spirit of God moved upon the face of the waters. And God said, Let there be light: and there was light. And God saw the light, that it was good: and God divided the light from the darkness. And God called the light Day, and the darkness he called Night. And the evening and the morning were the first day. And God said, Let there be a firmament in the midst of the waters, and let it divide the waters from the waters. And God made the firmament, and divided the waters which were under the firmament from the waters which were above the firmament: and it was so. And God called the firmament Heaven. And the evening and the morning were the second day. And God said, Let the waters under the heaven be gathered together unto one place, and let the dry land appear: and it was so. And God called the dry land Earth; and the gathering together of the waters called he Seas: and God saw that it was good. And God said, Let the earth bring forth grass, the herb yielding seed, and the fruit tree yielding fruit after his kind, whose seed is in itself, upon the earth: and it was so. And the earth brought forth grass, and herb yielding seed after his kind, and the tree yielding fruit, whose seed was in itself, after his kind: and God saw that it was good. And the evening and the morning were the third day. And God said, Let there be lights in the firmament of the heaven to divide the day from the night; and let them be for signs, and for seasons, and for days, and years: And let them be for lights in the firmament of the heaven to give light upon the earth: and it was so. And God made two great lights; the greater light to rule the day, and the lesser light to rule the night: he made the stars also. And God set them in the firmament of the heaven to give light upon the earth, And to rule over the day and over the night, and to divide the light from the darkness: and God saw that it was good. And the evening and the morning were the fourth day. And God said, Let the waters bring forth abundantly the moving creature that hath life, and fowl that may fly above the earth in the open firmament of heaven. And God created great whales, and every living creature that moveth, which the waters brought forth abundantly, after their kind, and every winged fowl after his kind: and God saw that it was good. And God blessed them, saying, Be fruitful, and multiply, and fill the waters in the seas, and let fowl multiply in the earth. And the evening and the morning were the fifth day. And God said, Let the earth bring forth the living creature after his kind, cattle, and creeping thing, and beast of the earth after his kind: and it was so. And God made the beast of the earth after his kind, and cattle after their kind, and every thing that creepeth upon the earth after his kind: and God saw that it was good. And God said, Let us make man in our image, after our likeness: and let them have dominion over the fish of the sea, and over the fowl of the air, and over the cattle, and over all the earth, and over every creeping thing that creepeth upon the earth. So God created man in his own image, in the image of God created he him; male and female created he them. And God blessed them, and God said unto them, Be fruitful, and multiply, and replenish the earth, and subdue it: and have dominion over the fish of the sea, and over the fowl of the air, and over every living thing that moveth upon the earth. And God said, Behold, I have given you every herb bearing seed, which is upon the face of all the earth, and every tree, in the which is the fruit of a tree yielding seed; to you it shall be for meat. And to every beast of the earth, and to every fowl of the air, and to every thing that creepeth upon the earth, wherein there is life, I have given every green herb for meat: and it was so. And God saw every thing that he had made, and, behold, it was very good. And the evening and the morning were the sixth day.";
+function loadCheckExample() {
+  state.check.mine = [{ name: "genesis-1-kjv.txt", text: GENESIS, example: true }];
+  state.check.ctrl = []; $("#check-mine-paste").value = ""; $("#check-ctrl-paste").value = "";
+  renderList("check", "mine"); renderList("check", "ctrl");
+  $("#c-words").value = 60; $("#c-n").value = 12; state.example.check = true;
+  $("#c-results").innerHTML = `<div class="empty">Loaded Genesis chapter 1 (King James Version), a public-domain text that every model has seen thousands of times. Press Check models to see what a positive result looks like.</div>`;
+}
+
 /* -------- routing + wiring */
-const VIEWS = ["text", "images", "probe", "method"];
+const VIEWS = ["check", "text", "images", "probe", "method"];
 function route() {
-  const v = VIEWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "text";
+  const v = VIEWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "check";
   VIEWS.forEach(n => { $(`#view-${n}`).hidden = n !== v; });
   document.querySelectorAll("nav.tabs a").forEach(a => a.setAttribute("aria-selected", a.dataset.view === v ? "true" : "false"));
 }
 window.addEventListener("hashchange", route);
 ["dragover", "drop"].forEach(t => window.addEventListener(t, e => { if (!e.target.closest?.(".exhibit")) e.preventDefault(); }));
 buildExhibits("text"); buildExhibits("image");
+buildExhibits("check", $("#check-exhibits"), [
+  { key: "mine", tag: "Step 1", title: "Your writing", hint: "The text you want to check: files (.txt, .md, .docx, .pdf) or pasted text. A few thousand words gives enough passages." },
+  { key: "ctrl", tag: "Optional", title: "Your unseen writing", hint: "Writing of yours no model can have seen, such as pieces written after the models' training cutoff. Leave empty to use automatic rewrites of your passages instead." },
+]);
+$("#c-results").innerHTML = CHECK_EMPTY;
+renderModelPicker();
+if (inViewer) window.claude.use("sample").then(fn => { sampleFn = fn; renderModelPicker(); if (!fn) { const w = $("#c-sample-wait"); if (w) w.textContent = "Claude isn't available through this view. Open the page on claude.ai while signed in."; } }).catch(() => { });
+$("#c-run").addEventListener("click", runCheck);
+$("#c-stop").addEventListener("click", () => checkCtl?.abort());
+$("#c-example").addEventListener("click", loadCheckExample);
+$("#c-results").addEventListener("click", e => { const a = e.target.closest("[data-detail]"); if (a) { e.preventDefault(); const d = $(`#c-detail-${a.dataset.detail}`); d.open = true; d.scrollIntoView({ behavior: "smooth", block: "start" }); } });
 $("#t-run").addEventListener("click", runText);
 $("#t-example").addEventListener("click", () => { loadTextExample(); runText(); });
 $("#i-run").addEventListener("click", runImages);
@@ -981,7 +1403,7 @@ $("#p-import-btn").addEventListener("click", () => {
 route();
 // Open in a working state: the text example, clearly labeled.
 loadTextExample(); runText();
-window.dotlet = { analyzeText, analyzeImages, scoreContinuation, compare, auc, mannWhitneyGreater, imageHash, hashSim };
+window.dotlet = { analyzeText, analyzeImages, scoreContinuation, compare, comparePaired, signFlip, wilcoxonGreater, auc, mannWhitneyGreater, imageHash, hashSim };
 </script>
 </body>
 </html>

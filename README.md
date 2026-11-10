@@ -18,18 +18,33 @@ pip install -e '.[image-clip]' / '.[image-mia]'   # + CLIP features / diffusion-
 
 ## Website
 
-`web/index.html` is a single-file web app with the text overlap, image overlap
-and completion-probe tests. It reads .txt, .md, .html, Word (.docx) and PDF
-files, and images can be pasted in. **Everything runs in your browser and no file is
-uploaded**, which matters if you're checking unpublished work. Open the file
-directly, or host it anywhere static. For GitHub Pages: Settings > Pages >
-deploy from branch, folder `/web`.
+`web/index.html` is a single-file web app. Its main tab, **Check models**,
+does the whole test for you: add your writing, pick models, and it reports per
+model whether that model fills in your real words better than it fills in
+control text it can't have seen.
 
-The statistics are ported from the Python package. On identical input the
-per-chunk scores, AUC and Mann-Whitney p-values match exactly. Permutation and
-bootstrap results differ slightly because they use a different random number
-generator. Tests that need model weights or automated API calls (`mia`,
-`image probe`, `image mia`, `probe run`) are only in the CLI.
+- **Claude models** work in the version published on claude.ai with no API
+  key, using the visitor's own Claude account (they approve this once).
+- **Other models** (Anthropic API, OpenAI, Google Gemini, OpenRouter, or any
+  OpenAI-compatible server) work in the standalone page, with your own API
+  keys. Keys stay in the tab's memory and go straight to each provider. Open
+  the file directly or host it on GitHub Pages (Settings > Pages > deploy
+  from branch, folder `/web`).
+- **Controls** are automatic rewrites of your own passages, which no model
+  can have seen, or your own unseen writing if you add some. With rewrites,
+  each passage is compared with its own rewrite using a sign-flip test and a
+  Wilcoxon signed-rank test. With several models, each is held to a
+  Bonferroni-corrected threshold. Refusals count as no match and are
+  reported, and mostly-refused runs are marked inconclusive.
+- **Try a famous text** loads Genesis 1 (KJV, public domain) to show what a
+  positive result looks like.
+
+The other tabs (text overlap, image overlap, manual completion probe) read
+.txt, .md, .html, Word and PDF files and images entirely in the browser and
+send nothing anywhere. Their statistics are ported from the Python package
+and match it exactly on identical input (per-chunk scores, AUC, Mann-Whitney
+p). Tests that need model weights (`mia`, `image mia`) and `image probe` are
+CLI-only.
 
 ## Text: the three tests
 
