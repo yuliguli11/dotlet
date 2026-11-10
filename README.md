@@ -19,7 +19,8 @@ pip install -e '.[image-clip]' / '.[image-mia]'   # + CLIP features / diffusion-
 ## Website
 
 `web/index.html` is a single-file web app with the text overlap, image overlap
-and completion-probe tests. **Everything runs in your browser and no file is
+and completion-probe tests. It reads .txt, .md, .html, Word (.docx) and PDF
+files, and images can be pasted in. **Everything runs in your browser and no file is
 uploaded**, which matters if you're checking unpublished work. Open the file
 directly, or host it anywhere static. For GitHub Pages: Settings > Pages >
 deploy from branch, folder `/web`.

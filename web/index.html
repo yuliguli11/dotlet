@@ -174,6 +174,10 @@ button:hover:not(:disabled) { filter: brightness(1.06); }
 .pair .meta { display: flex; justify-content: space-between; align-items: center; gap: 6px; font: 0.8rem var(--f-mono); }
 .empty { border: 1px dashed var(--line); border-radius: var(--r); padding: 22px; color: var(--muted); text-align: center; }
 .status { font-size: 0.9rem; color: var(--muted); min-height: 1.4em; }
+.msg { font-size: 0.85rem; color: var(--hot); display: grid; gap: 2px; }
+.msg:empty { display: none; }
+.msg.ok { color: var(--muted); }
+.help { margin: 0; font-size: 0.88rem; color: var(--muted); }
 .status.err { color: var(--hot); }
 
 /* probe */
@@ -221,6 +225,7 @@ footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--line);
 <section class="view" id="view-text" role="tabpanel">
   <p class="intro">Add your writing, comparable control writing the AI can't have seen, and text the AI produced. dotlet checks whether rare 8-word sequences from your work turn up in the AI's output more often than sequences from the controls.</p>
   <div class="exhibits" id="text-exhibits"></div>
+  <p class="help">Reads .txt, .md, .html, Word (.docx) and PDF files. If the Add files button doesn't open anything, you may be viewing this inside an app: open the page in a web browser such as Chrome, Safari or Firefox, or paste the text into the boxes instead.</p>
   <div class="controls">
     <label class="field">Words per chunk<input type="number" id="t-chunk" value="200" min="20" step="10"></label>
     <label class="field">Match length (words)<input type="number" id="t-n" value="8" min="4" max="20"></label>
@@ -240,6 +245,7 @@ footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--line);
 <section class="view" id="view-images" role="tabpanel" hidden>
   <p class="intro">Add your images, comparable control images the AI can't have seen, and images the AI generated. dotlet fingerprints every image (a perceptual hash that survives resizing, compression, brightness changes and mirroring) and checks whether AI images come closer to yours than to the controls.</p>
   <div class="exhibits" id="image-exhibits"></div>
+  <p class="help">Reads JPG, PNG, WebP and GIF. If the Add images button doesn't open anything, open the page in a web browser, or copy an image and paste it into a box.</p>
   <div class="controls">
     <label class="field">Near-copy cut-off<input type="number" id="i-thr" value="0.85" min="0.5" max="1" step="0.01"></label>
     <div class="actions">
@@ -554,41 +560,110 @@ const EXHIBITS = [
 function buildExhibits(kind) {
   const host = $(kind === "text" ? "#text-exhibits" : "#image-exhibits");
   host.innerHTML = EXHIBITS.map(e => `
-    <div class="exhibit" data-kind="${kind}" data-key="${e.key}">
+    <div class="exhibit" data-kind="${kind}" data-key="${e.key}"${kind === "image" ? ` tabindex="0" aria-label="${e.title}: click, then paste an image"` : ""}>
       <span class="tag">${e.tag}</span><h3>${e.title}</h3><p>${e.hint}</p>
       <div class="filebtn">
         <label class="btn small" for="${kind}-${e.key}-file" style="padding:5px 10px;font-size:.85rem">Add ${kind === "text" ? "files" : "images"}</label>
-        <input type="file" id="${kind}-${e.key}-file" multiple accept="${kind === "text" ? ".txt,.md,.markdown,.rst,.html,.htm,.tex,.csv,.json,text/plain" : "image/*"}">
+        <input type="file" id="${kind}-${e.key}-file" multiple${kind === "text" ? "" : ` accept="image/*"`}>
         <button type="button" class="small" data-clear>Clear</button>
       </div>
-      ${kind === "text" ? `<textarea id="${kind}-${e.key}-paste" placeholder="Or paste text here (counts as one file)"></textarea>` : ""}
+      ${kind === "text" ? `<textarea id="${kind}-${e.key}-paste" placeholder="Or paste text here (counts as one file)"></textarea>` : `<p>Or click this box and paste an image.</p>`}
+      <div class="msg" data-msg aria-live="polite"></div>
       <div class="${kind === "text" ? "filelist" : "thumbs"}" data-list></div>
     </div>`).join("");
   host.querySelectorAll(".exhibit").forEach(box => {
     const key = box.dataset.key, input = box.querySelector("input[type=file]");
     const add = files => addFiles(kind, key, [...files]);
     input.addEventListener("change", () => { add(input.files); input.value = ""; });
-    box.querySelector("[data-clear]").addEventListener("click", () => { state[kind === "text" ? "text" : "img"][key] = []; const ta = box.querySelector("textarea"); if (ta) ta.value = ""; renderList(kind, key); });
+    box.querySelector("[data-clear]").addEventListener("click", () => { state[kind === "text" ? "text" : "img"][key] = []; const ta = box.querySelector("textarea"); if (ta) ta.value = ""; box.querySelector("[data-msg]").textContent = ""; renderList(kind, key); });
     box.addEventListener("dragover", e => { e.preventDefault(); box.classList.add("dragover"); });
     box.addEventListener("dragleave", () => box.classList.remove("dragover"));
     box.addEventListener("drop", e => { e.preventDefault(); box.classList.remove("dragover"); add(e.dataTransfer.files); });
+    if (kind === "image") box.addEventListener("paste", e => {
+      const files = [...(e.clipboardData?.files || [])];
+      if (files.length) { e.preventDefault(); add(files); }
+    });
   });
 }
-async function addFiles(kind, key, files) {
-  if (kind === "text") {
-    for (const f of files) {
-      if (!TEXT_EXT.test(f.name)) { status("t", `Skipped ${f.name}: only plain-text files (.txt, .md, .html and similar) can be read here.`, true); continue; }
-      let t = await f.text(); if (/\.html?$/i.test(f.name)) t = t.replace(/<[^>]+>/g, " ");
-      if (t.trim()) state.text[key].push({ name: f.name, text: t });
+function decodeEntities(s) { const t = document.createElement("textarea"); t.innerHTML = s; return t.value; }
+async function inflateRaw(bytes) {
+  if (typeof DecompressionStream === "undefined") throw new Error("this browser is too old to open .docx files");
+  return new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate-raw"))).arrayBuffer());
+}
+async function readDocx(f) { // minimal zip reader: finds word/document.xml
+  const buf = new Uint8Array(await f.arrayBuffer()), dv = new DataView(buf.buffer);
+  let eocd = -1;
+  for (let i = buf.length - 22; i >= Math.max(0, buf.length - 65557); i--) if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+  if (eocd < 0) throw new Error("it isn't a valid Word file");
+  let p = dv.getUint32(eocd + 16, true);
+  for (let k = dv.getUint16(eocd + 10, true); k > 0 && dv.getUint32(p, true) === 0x02014b50; k--) {
+    const method = dv.getUint16(p + 10, true), size = dv.getUint32(p + 20, true), nlen = dv.getUint16(p + 28, true);
+    const name = new TextDecoder().decode(buf.subarray(p + 46, p + 46 + nlen)), off = dv.getUint32(p + 42, true);
+    if (name === "word/document.xml") {
+      const start = off + 30 + dv.getUint16(off + 26, true) + dv.getUint16(off + 28, true);
+      let data = buf.subarray(start, start + size);
+      if (method === 8) data = await inflateRaw(data); else if (method !== 0) throw new Error("it uses an unsupported compression");
+      const xml = new TextDecoder().decode(data);
+      return decodeEntities(xml.replace(/<w:(tab|br|cr)\b[^>]*\/>/g, " ").replace(/<\/w:p>/g, "\n").replace(/<[^>]+>/g, ""));
     }
-  } else {
-    for (const f of files) {
-      if (!f.type.startsWith("image/")) continue;
-      try { const src = await createImageBitmap(f); state.img[key].push({ name: f.name, src, url: URL.createObjectURL(f) }); }
-      catch { status("i", `Couldn't read ${f.name} as an image.`, true); }
-    }
+    p += 46 + nlen + dv.getUint16(p + 30, true) + dv.getUint16(p + 32, true);
   }
-  state.example[kind === "text" ? "text" : "img"] = false;
+  throw new Error("no document text was found in it");
+}
+const PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/";
+let pdfjsReady = null;
+function loadPdfjs() {
+  if (!pdfjsReady) pdfjsReady = new Promise((res, rej) => {
+    const sc = document.createElement("script"); sc.src = PDFJS + "pdf.min.js";
+    sc.onload = () => { window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS + "pdf.worker.min.js"; res(window.pdfjsLib); };
+    sc.onerror = () => { pdfjsReady = null; rej(new Error("the PDF reader couldn't load (are you offline?)")); };
+    document.head.appendChild(sc);
+  });
+  return pdfjsReady;
+}
+async function readPdf(f) {
+  const lib = await loadPdfjs();
+  const doc = await lib.getDocument({ data: new Uint8Array(await f.arrayBuffer()), isEvalSupported: false }).promise;
+  const pages = [];
+  for (let i = 1; i <= doc.numPages; i++) {
+    const c = await (await doc.getPage(i)).getTextContent();
+    pages.push(c.items.map(it => it.str + (it.hasEOL ? "\n" : " ")).join(""));
+  }
+  const text = pages.join("\n");
+  if (!text.trim()) throw new Error("it has no selectable text (probably a scan)");
+  return text;
+}
+async function readTextFile(f) {
+  if (/\.docx$/i.test(f.name)) return readDocx(f);
+  if (/\.pdf$/i.test(f.name) || f.type === "application/pdf") return readPdf(f);
+  if (/\.(doc|pages|odt|rtf)$/i.test(f.name)) throw new Error("this format can't be read here. Save it as .docx, .pdf or .txt, or paste the text");
+  if (!TEXT_EXT.test(f.name) && f.type && !f.type.startsWith("text/")) throw new Error("it isn't a text, Word or PDF file");
+  const t = await f.text();
+  return /\.html?$/i.test(f.name) ? t.replace(/<[^>]+>/g, " ") : t;
+}
+async function addFiles(kind, key, files) {
+  const box = document.querySelector(`.exhibit[data-kind="${kind}"][data-key="${key}"]`), msg = box.querySelector("[data-msg]");
+  const problems = []; let added = 0;
+  msg.className = "msg ok"; msg.textContent = `Reading ${files.length} file${files.length === 1 ? "" : "s"}...`;
+  for (const f of files) {
+    const name = f.name || (kind === "text" ? "pasted file" : "pasted-image.png");
+    try {
+      if (kind === "text") {
+        const t = await readTextFile(f);
+        if (!t.trim()) throw new Error("it's empty");
+        state.text[key].push({ name, text: t }); added++;
+      } else {
+        if (f.type && !f.type.startsWith("image/")) throw new Error("it isn't an image");
+        let src;
+        try { src = await createImageBitmap(f); }
+        catch { throw new Error(/\.(heic|heif)$/i.test(name) ? "HEIC photos can't be opened in this browser. Export them as JPG or PNG" : "it couldn't be opened as an image"); }
+        state.img[key].push({ name, src, url: URL.createObjectURL(f) }); added++;
+      }
+    } catch (e) { problems.push(`Skipped ${name}: ${e.message}.`); }
+  }
+  msg.className = "msg";
+  msg.innerHTML = problems.map(m => `<span>${esc(m)}</span>`).join("");
+  if (added) state.example[kind === "text" ? "text" : "img"] = false;
   renderList(kind, key);
 }
 function renderList(kind, key) {
@@ -857,6 +932,7 @@ function route() {
   document.querySelectorAll("nav.tabs a").forEach(a => a.setAttribute("aria-selected", a.dataset.view === v ? "true" : "false"));
 }
 window.addEventListener("hashchange", route);
+["dragover", "drop"].forEach(t => window.addEventListener(t, e => { if (!e.target.closest?.(".exhibit")) e.preventDefault(); }));
 buildExhibits("text"); buildExhibits("image");
 $("#t-run").addEventListener("click", runText);
 $("#t-example").addEventListener("click", () => { loadTextExample(); runText(); });
