@@ -224,7 +224,7 @@ footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--line);
 
 <!-- ============ TEXT ============ -->
 <section class="view" id="view-text" role="tabpanel">
-  <p class="intro">Add your writing, comparable control writing the AI can't have seen, and text the AI produced. dotlet checks whether rare 8-word sequences from your work turn up in the AI's output more often than sequences from the controls.</p>
+  <p class="intro">Add your writing, comparable control writing the AI can't have seen, and text the AI produced. dotlet checks whether rare 8-word sequences from your work turn up in the AI's output more often than sequences from the controls. It doesn't detect whether a piece of text was written by AI.</p>
   <div class="exhibits" id="text-exhibits"></div>
   <p class="help">Reads .txt, .md, .html, Word (.docx) and PDF files. If the Add files button doesn't open anything, you may be viewing this inside an app: open the page in a web browser such as Chrome, Safari or Firefox, or paste the text into the boxes instead.</p>
   <div class="controls">
@@ -739,9 +739,9 @@ function stripChart(r, label) {
   </svg>`;
 }
 const VERDICTS = {
-  strong: ["Strong evidence", "Your work is treated very differently from the controls, well beyond chance. That's consistent with the model having trained on it."],
-  some: ["Some evidence", "Your work scores higher than the controls more often than chance would explain, but the signal is modest. Add more material and controls to firm it up."],
-  none: ["No significant evidence", "At this sample size the model doesn't treat your work differently from the controls. That isn't proof it never saw your work."],
+  strong: ["Strong sign the AI learned from your work", "The AI reproduces your work far more than the controls, well beyond chance. That's consistent with the model having been trained on it."],
+  some: ["Some sign the AI learned from your work", "The AI reproduces your work more than the controls, more often than chance would explain, but the signal is modest. Add more material and controls to firm it up."],
+  none: ["No sign the AI reproduced your work", "The AI's output doesn't contain more of your work than of the controls. This doesn't tell you whether the text was written by AI, only that it didn't copy your work. It also isn't proof the AI never saw your work: models rarely copy word for word when asked to write something new. For a more direct test, use the Completion probe tab."],
 };
 function resultBlock(r, unitLabel, extraTitle, copies = 0) {
   let [h, p] = VERDICTS[r.level], level = r.level;
